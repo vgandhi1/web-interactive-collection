@@ -26,7 +26,9 @@ A financial visualization tool used to simulate the **"Stock + Put Option"** str
 * **Tech Stack:** Chart.js, HTML5 Canvas.
 
 ### 3. Homelab Portal Guide (`HomelabPortal.html`)
-
+A setup guide for the homelab enthusiastic to have Nexcloud (cloud services locally), home-assistant, nginx, samba (HDD file-sharing), grafana, InfluxDB on the Raspberry Pi.
+* **Instruction:** Homealab/README.md
+* **Tech Stack:** docker-compose, nginx proxy manager (web hosting locally), database e.g. IndluxDB, MariaDB.
 
 
 ### 4. Weather WebApp (External)
