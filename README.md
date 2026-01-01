@@ -4,7 +4,7 @@ A curated collection of interactive single-page applications (SPAs), financial t
 
 ## 🚀 Live Demo
 You can access the main interactive hub here:
-**[Main Hub Landing Page](#)** *(https://vgandhi1.github.io/web-interactive-collection/)*
+**[Main Hub Landing Page](https://vgandhi1.github.io/web-interactive-collection/)**
 
 ---
 
@@ -43,17 +43,6 @@ This collection primarily utilizes modern web technologies to ensure speed and r
 | **Visualizations** | Chart.js & Plotly.js (Canvas-based) |
 | **Logic** | Vanilla JavaScript (ES6+) |
 | **Hosting** | GitHub Pages |
-
----
-
-## 🔧 Deployment
-To host these files yourself:
-
-1.  **Clone** this repository to your local machine.
-2.  Ensure your `index.html` is in the **root directory**.
-3.  Navigate to your repository on GitHub.
-4.  Go to **Settings > Pages**.
-5.  Set the **Source** to the `main` branch and click **Save**.
 
 ---
 
