@@ -57,5 +57,5 @@ To host these files yourself:
 
 ---
 
-**Author:** [vGandhi1](https://github.com/vGandhi1)  
+**Author:** [Vinay Gandhi](https://github.com/vGandhi1)  
 **License:** MIT
