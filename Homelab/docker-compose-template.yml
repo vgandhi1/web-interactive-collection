@@ -1,0 +1,144 @@
+version: '3.8'
+
+networks:
+  homelab_net:
+    driver: bridge
+
+services:
+
+  # Gateway & SSL Manager
+  nginx:
+    container_name: nginx
+    image: jc21/nginx-proxy-manager:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - ./volumes/nginx/data:/data
+      - ./volumes/nginx/letsencrypt:/etc/letsencrypt
+    networks:
+      - homelab_net
+
+  # Public Access Tunnel
+  cloudflared:
+    container_name: cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    networks:
+      - homelab_net
+
+  # Static Web Pages (Weather / Hedging)
+  static-web-apps:
+    container_name: static-web-apps
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./static-content/weather:/usr/share/nginx/html/weather:ro
+      - ./static-content/hedging:/usr/share/nginx/html/hedging:ro
+    networks:
+      - homelab_net
+
+  # Home Assistant (Host Mode for Device Discovery)
+  home_assistant:
+    container_name: home_assistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./volumes/home_assistant:/config
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    privileged: true
+
+  # Nextcloud Stack
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:latest
+    restart: unless-stopped
+    depends_on:
+      nextcloud_db:
+        condition: service_healthy
+    environment:
+      - MYSQL_HOST=nextcloud_db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PWD}
+      - TRUSTED_PROXIES=172.16.0.0/12 100.64.0.0/10
+      - OVERWRITEPROTOCOL=https
+    volumes:
+      - ./volumes/nextcloud/html:/var/www/html
+    networks:
+      - homelab_net
+
+  nextcloud_db:
+    container_name: nextcloud_db
+    image: mariadb:10.6
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PWD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PWD}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$${DB_ROOT_PWD}"]
+      interval: 10s
+      retries: 5
+    volumes:
+      - /mnt/data/nextcloud/db:/var/lib/mysql
+    networks:
+      - homelab_net
+
+  # Data & Monitoring
+  influxdb2:
+    container_name: influxdb2
+    image: influxdb:latest
+    restart: unless-stopped
+    volumes:
+      - ./volumes/influxdb/data:/var/lib/influxdb2
+    networks:
+      - homelab_net
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    volumes:
+      - /mnt/data/grafana/data:/var/lib/grafana
+    depends_on:
+      - influxdb2
+    networks:
+      - homelab_net
+
+  # Management
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./volumes/portainer/data:/data
+    networks:
+      - homelab_net
+
+  # Samba File Sharing
+  samba:
+    container_name: samba
+    image: dperson/samba
+    restart: unless-stopped
+    ports:
+      - "139:139"
+      - "445:445"
+    environment:
+      - TZ=UTC
+      - USER=${SAMBA_USER};${SAMBA_PASSWORD}
+    volumes:
+      - /mnt/data:/mnt/data
+    command: -s "Data;/mnt/data;yes;no;no;${SAMBA_USER}"
+    networks:
+      - homelab_net
