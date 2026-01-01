@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vGandhi1 | Interactive Project Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+    <div class="max-w-4xl mx-auto px-6 py-12">
+        <header class="text-center mb-16">
+            <h1 class="text-4xl font-extrabold tracking-tight mb-4">Interactive Project Hub</h1>
+            <p class="text-slate-600 text-lg">A collection of interactive guides, financial simulators, and web applications.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- UV Python Guide -->
+            <a href="uv-guide.html" class="card bg-white p-6 rounded-2xl border border-slate-200 block">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center font-bold text-xl">uv</div>
+                    <h2 class="text-xl font-bold">Mastering uv</h2>
+                </div>
+                <p class="text-slate-500 text-sm">An interactive terminal-based guide for the modern Python package manager.</p>
+                <div class="mt-4 text-orange-600 font-semibold text-sm flex items-center">
+                    Launch Guide →
+                </div>
+            </a>
+
+            <!-- Hedging Simulator -->
+            <a href="hedging_simulator.html" class="card bg-white p-6 rounded-2xl border border-slate-200 block">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-xl">📈</div>
+                    <h2 class="text-xl font-bold">Hedging Simulator</h2>
+                </div>
+                <p class="text-slate-500 text-sm">A financial tool to visualize Profit/Loss scenarios using Stock and Put Options.</p>
+                <div class="mt-4 text-blue-600 font-semibold text-sm flex items-center">
+                    Open Simulator →
+                </div>
+            </a>
+
+            <!-- Weather WebApp (External Link) -->
+            <a href="https://vgandhi1.github.io/weather-WebApp/" target="_blank" class="card bg-white p-6 rounded-2xl border border-slate-200 block">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl">☀️</div>
+                    <h2 class="text-xl font-bold">Weather WebApp</h2>
+                </div>
+                <p class="text-slate-500 text-sm">Real-time weather data visualization and forecasting application.</p>
+                <div class="mt-4 text-emerald-600 font-semibold text-sm flex items-center">
+                    Visit App (External) →
+                </div>
+            </a>
+
+        </div>
+
+        <footer class="mt-20 pt-8 border-t border-slate-200 text-center text-slate-400 text-sm">
+            <p>&copy; 2024 vGandhi1. Hosted on GitHub Pages.</p>
+        </footer>
+    </div>
+
+</body>
+</html>
