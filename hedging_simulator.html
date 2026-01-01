@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hedging Simulator with Profit/Loss Overlay</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }
+    label, input { display: block; margin: 10px 0 5px; }
+    h2 { margin-bottom: 5px; }
+    canvas { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h2>📉 Hedging Simulator: Stock + Put Option</h2>
+
+  <label>Current Stock Price: <span id="stockPriceLabel">153</span></label>
+  <input type="range" id="stockPrice" min="50" max="300" value="153" />
+
+  <label>Put Strike Price: <span id="strikeLabel">101</span></label>
+  <input type="range" id="strikePrice" min="50" max="300" value="101" />
+
+  <label>Put Option Cost: <span id="costLabel">10</span></label>
+  <input type="range" id="optionCost" min="0" max="50" value="10" />
+
+  <canvas id="portfolioChart" width="850" height="400"></canvas>
+  <canvas id="profitLossChart" width="850" height="400"></canvas>
+
+  <script>
+    const stockPriceSlider = document.getElementById("stockPrice");
+    const strikeSlider = document.getElementById("strikePrice");
+    const costSlider = document.getElementById("optionCost");
+
+    const stockLabel = document.getElementById("stockPriceLabel");
+    const strikeLabel = document.getElementById("strikeLabel");
+    const costLabel = document.getElementById("costLabel");
+
+    // Portfolio Value Chart Setup
+    const portfolioCtx = document.getElementById("portfolioChart").getContext("2d");
+    let portfolioChart = new Chart(portfolioCtx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Unhedged Portfolio Value", borderColor: "red", data: [], fill: false, tension: 0.1 },
+          { label: "Hedged Portfolio Value", borderColor: "green", data: [], fill: false, tension: 0.1 },
+          { label: "Put Strike Price", borderColor: "gray", data: [], borderDash: [10, 5], fill: false, pointRadius: 0 }
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Portfolio Value vs Final Stock Price"
+          },
+          legend: { position: 'top' }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: "Final Stock Price ($)" },
+          },
+          y: {
+            title: { display: true, text: "Portfolio Value ($)" },
+            beginAtZero: false,
+          },
+        },
+      },
+    });
+
+    // Profit/Loss Chart Setup
+    const profitLossCtx = document.getElementById("profitLossChart").getContext("2d");
+    let profitLossChart = new Chart(profitLossCtx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Unhedged Profit/Loss", borderColor: "red", data: [], fill: false, tension: 0.1 },
+          { label: "Hedged Profit/Loss", borderColor: "green", data: [], fill: false, tension: 0.1 },
+          { label: "Break-even Line", borderColor: "gray", data: [], borderDash: [5, 5], fill: false, pointRadius: 0 }
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Profit/Loss vs Final Stock Price"
+          },
+          legend: { position: 'top' }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: "Final Stock Price ($)" },
+          },
+          y: {
+            title: { display: true, text: "Profit/Loss ($)" },
+            beginAtZero: false,
+          },
+        },
+      },
+    });
+
+    function updateCharts() {
+      const currentStockPrice = parseFloat(stockPriceSlider.value);
+      const strikePrice = parseFloat(strikeSlider.value);
+      const optionCost = parseFloat(costSlider.value);
+
+      stockLabel.textContent = currentStockPrice;
+      strikeLabel.textContent = strikePrice;
+      costLabel.textContent = optionCost;
+
+      const priceRange = [];
+      const unhedgedValues = [];
+      const hedgedValues = [];
+      const unhedgedPL = [];
+      const hedgedPL = [];
+      const strikeLine = [];
+      const breakEvenLine = [];
+
+      for (let p = currentStockPrice - 80; p <= currentStockPrice + 40; p += 2) {
+        priceRange.push(p.toFixed(2));
+
+        // Portfolio values
+        unhedgedValues.push(p);
+        // Hedged value = max(stock price, strike) - option cost
+        const hedgedVal = (p < strikePrice ? strikePrice : p) - optionCost;
+        hedgedValues.push(hedgedVal);
+
+        // Profit/Loss = portfolio value - initial stock price
+        unhedgedPL.push((p - currentStockPrice).toFixed(2));
+        hedgedPL.push((hedgedVal - currentStockPrice).toFixed(2));
+
+        // Lines for reference
+        strikeLine.push(strikePrice);
+        breakEvenLine.push(0);
+      }
+
+      // Update portfolio chart data
+      portfolioChart.data.labels = priceRange;
+      portfolioChart.data.datasets[0].data = unhedgedValues;
+      portfolioChart.data.datasets[1].data = hedgedValues;
+      portfolioChart.data.datasets[2].data = strikeLine;
+      portfolioChart.update();
+
+      // Update profit/loss chart data
+      profitLossChart.data.labels = priceRange;
+      profitLossChart.data.datasets[0].data = unhedgedPL;
+      profitLossChart.data.datasets[1].data = hedgedPL;
+      profitLossChart.data.datasets[2].data = breakEvenLine;
+      profitLossChart.update();
+    }
+
+    stockPriceSlider.oninput = updateCharts;
+    strikeSlider.oninput = updateCharts;
+    costSlider.oninput = updateCharts;
+
+    updateCharts(); // initial draw
+  </script>
+</body>
+</html>

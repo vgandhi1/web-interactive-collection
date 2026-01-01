@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mastering uv: The Modern Python Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f5f5f4; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d6d3d1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a29e; 
+        }
+
+        .tab-active {
+            border-bottom: 2px solid #ea580c; /* orange-600 */
+            color: #ea580c;
+            font-weight: 600;
+        }
+
+        .tab-inactive {
+            color: #78716c; /* stone-500 */
+        }
+        .tab-inactive:hover {
+            color: #44403c; /* stone-700 */
+        }
+
+        /* Terminal typing effect cursor */
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        
+        /* Flowchart Node Styling */
+        .flow-node {
+            transition: all 0.3s ease;
+        }
+        .flow-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals with Rust Orange Accent
+         Background: Stone-50 (#fafaf9)
+         Surface: White (#ffffff)
+         Text: Stone-800 (#292524)
+         Accent: Orange-600 (#ea580c) - inspired by Rust (language) branding since uv is written in Rust.
+    -->
+    
+    <!-- Application Structure Plan:
+         Designed as a Task-Based Interactive Dashboard.
+         1. Hero Section: Introduces uv and its speed (visualized with a chart).
+         2. Navigation: Tabbed interface to separate distinct user workflows (Setup, Project Management, Deep Dive, Quick Ref).
+         3. Tab 1 - Python & Venv: An interactive "Command Builder". Users select their goal (e.g., "Install Python 3.12") and the app generates the specific command in a terminal view.
+         4. Tab 2 - The Modern Workflow: An interactive flow diagram representing the relationship between pyproject.toml, uv.lock, and the environment. This visually explains the abstract concepts of "sync" vs "lock".
+         5. Tab 3 - Command Reference: A searchable data table for quick lookups.
+         Rationale: The report is a technical guide. Grouping by "User Intent" (Setup vs. Maintenance) is more effective than linear reading.
+    -->
+
+    <!-- Visualization & Content Choices:
+         1. Intro - Speed Comparison Bar Chart:
+            - Goal: Inform/Wow.
+            - Method: Chart.js Bar Chart.
+            - Interaction: Tooltip.
+            - Justification: Visualizes the "extremely fast" claim in the intro text.
+         2. Interactive Terminal (HTML/JS):
+            - Goal: Inform/Teach.
+            - Method: Dynamic text update based on button clicks.
+            - Interaction: Click buttons to change the "typed" command.
+            - Justification: Simulates the CLI experience, making it easier to learn syntax.
+         3. Workflow Diagram (HTML/CSS Grid):
+            - Goal: Explain Relationships.
+            - Method: Structured HTML boxes with CSS borders for arrows.
+            - Interaction: Hover to highlight connections.
+            - Justification: Replaces static images or Mermaid/SVG to explain complex file interactions natively.
+         4. Searchable Table (HTML/JS):
+            - Goal: Organize/Quick Ref.
+            - Method: HTML Table with JS filter.
+            - Interaction: text input filtering.
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="bg-stone-50 text-stone-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Header / Hero -->
+    <header class="bg-white border-b border-stone-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="h-8 w-8 bg-orange-600 rounded flex items-center justify-center text-white font-bold text-xl">uv</div>
+                    <h1 class="text-xl font-bold tracking-tight text-stone-900">Interactive Guide</h1>
+                </div>
+                <nav class="hidden md:flex space-x-8">
+                    <button onclick="switchTab('intro')" id="nav-intro" class="tab-active px-3 py-2 text-sm font-medium transition-colors">Start Here</button>
+                    <button onclick="switchTab('setup')" id="nav-setup" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">Setup & Venvs</button>
+                    <button onclick="switchTab('workflow')" id="nav-workflow" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">Project Workflow</button>
+                    <button onclick="switchTab('ref')" id="nav-ref" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">Cheat Sheet</button>
+                </nav>
+                <!-- Mobile menu button placeholder -->
+                <button class="md:hidden text-stone-500 hover:text-stone-900" onclick="alert('Please use a larger screen for the best interactive experience.')">
+                    <span class="text-2xl">≡</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+        <!-- TAB: INTRO -->
+        <div id="tab-intro" class="space-y-8 animate-fade-in">
+            <div class="text-center max-w-3xl mx-auto">
+                <h2 class="text-3xl font-extrabold text-stone-900 sm:text-4xl">The Future of Python Packaging</h2>
+                <p class="mt-4 text-lg text-stone-600">
+                    <code class="bg-stone-200 px-1 py-0.5 rounded text-stone-800 font-mono">uv</code> is an extremely fast Python package and project manager written in Rust. It serves as a drop-in replacement for <span class="font-semibold">pip</span>, <span class="font-semibold">pip-compile</span>, and <span class="font-semibold">virtualenv</span>.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center mt-12">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+                    <h3 class="text-lg font-semibold mb-4 text-stone-800">Why Switch?</h3>
+                    <ul class="space-y-4">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold mt-0.5">✓</span>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-stone-900">All-in-One Tool</p>
+                                <p class="text-sm text-stone-500">Manages Python versions, virtual environments, and dependencies.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold mt-0.5">✓</span>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-stone-900">No More <code>pyenv</code></p>
+                                <p class="text-sm text-stone-500">Self-installs and manages Python versions automatically.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold mt-0.5">✓</span>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-stone-900">Performance</p>
+                                <p class="text-sm text-stone-500">Built in Rust for blazing speed.</p>
+                            </div>
+                        </li>
+                    </ul>
+                    <div class="mt-6">
+                         <button onclick="switchTab('setup')" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded transition-colors shadow-sm">
+                            Get Started with Commands
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col items-center">
+                    <h3 class="text-lg font-semibold mb-2 text-stone-800 w-full text-left">Conceptual Speed Comparison</h3>
+                    <p class="text-xs text-stone-500 mb-4 w-full text-left">Illustrative representation of "Extremely Fast"</p>
+                    <div class="chart-container">
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: SETUP & VENV -->
+        <div id="tab-setup" class="hidden space-y-8 animate-fade-in">
+            <div class="border-l-4 border-orange-500 pl-4 py-1 mb-6">
+                <h2 class="text-2xl font-bold text-stone-900">Environment Management</h2>
+                <p class="text-stone-600">Interact with the terminal simulator below to learn how to manage Python versions and Virtual Environments.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Control Panel -->
+                <div class="lg:col-span-1 space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+                        <h3 class="font-semibold text-stone-800 mb-4 flex items-center gap-2">
+                            <span class="bg-stone-100 text-stone-600 px-2 py-1 rounded text-xs">1</span>
+                            Python Versions
+                        </h3>
+                        <div class="space-y-2">
+                            <button onclick="updateTerminal('install_py')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">Install specific version</span>
+                            </button>
+                            <button onclick="updateTerminal('list_py')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">List available versions</span>
+                            </button>
+                            <button onclick="updateTerminal('find_py')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">Find specific version</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+                        <h3 class="font-semibold text-stone-800 mb-4 flex items-center gap-2">
+                            <span class="bg-stone-100 text-stone-600 px-2 py-1 rounded text-xs">2</span>
+                            Virtual Environments
+                        </h3>
+                        <div class="space-y-2">
+                            <button onclick="updateTerminal('venv_default')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">Create Default (Latest)</span>
+                            </button>
+                            <button onclick="updateTerminal('venv_specific')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">Create with Python 3.12</span>
+                            </button>
+                            <button onclick="updateTerminal('venv_custom')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">Custom Name & Path</span>
+                            </button>
+                            <button onclick="updateTerminal('venv_activate')" class="w-full text-left px-4 py-2 rounded border border-stone-200 hover:border-orange-500 hover:bg-orange-50 transition-all text-sm group">
+                                <span class="font-medium text-stone-700 group-hover:text-orange-700">Activate Environment</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terminal Output -->
+                <div class="lg:col-span-2">
+                    <div class="bg-stone-900 rounded-xl shadow-lg overflow-hidden h-full min-h-[400px] flex flex-col">
+                        <div class="bg-stone-800 px-4 py-2 flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                            <span class="ml-2 text-stone-400 text-xs font-mono">user@machine:~/project</span>
+                        </div>
+                        <div class="p-6 font-mono text-sm flex-grow">
+                            <div id="terminal-content" class="text-stone-300 space-y-4">
+                                <p class="text-stone-500"># Select a task from the left to generate commands...</p>
+                            </div>
+                            <div class="mt-4 flex">
+                                <span class="text-green-500 mr-2">➜</span>
+                                <span id="terminal-input" class="text-white"></span><span class="bg-stone-500 w-2 h-5 inline-block ml-1 cursor-blink"></span>
+                            </div>
+                        </div>
+                        <div id="terminal-explanation" class="bg-stone-800 p-4 border-t border-stone-700 text-stone-300 text-sm">
+                            <span class="font-bold text-orange-400">Info:</span> Select an action to see details.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: WORKFLOW -->
+        <div id="tab-workflow" class="hidden space-y-8 animate-fade-in">
+            <div class="border-l-4 border-orange-500 pl-4 py-1 mb-6">
+                <h2 class="text-2xl font-bold text-stone-900">Modern Project Workflow</h2>
+                <p class="text-stone-600">Understanding how <code>uv sync</code> and <code>uv lock</code> manage your project files. Hover over the steps to see the flow.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Diagram -->
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 p-8 relative overflow-hidden">
+                    
+                    <h3 class="text-center font-bold text-stone-400 mb-8 uppercase tracking-widest text-xs">Project Dependency Flow</h3>
+
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-8 relative z-10">
+                        
+                        <!-- Node 1 -->
+                        <div class="flow-node w-full md:w-1/3 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg text-center cursor-help" onmouseenter="showFlowInfo('toml')" onmouseleave="resetFlowInfo()">
+                            <div class="text-3xl mb-2">📄</div>
+                            <h4 class="font-bold text-blue-900">pyproject.toml</h4>
+                            <p class="text-xs text-blue-700 mt-2">Human Readable</p>
+                            <p class="text-xs text-blue-600">High-level specs (e.g. <code>requests>=2.25</code>)</p>
+                        </div>
+
+                        <!-- Arrow 1 -->
+                        <div class="hidden md:flex flex-col items-center justify-center text-stone-400 w-1/6">
+                            <span class="text-xs font-mono mb-1">uv lock</span>
+                            <div class="h-0.5 w-full bg-stone-300 relative">
+                                <div class="absolute right-0 -top-1.5 border-t-4 border-b-4 border-l-8 border-transparent border-l-stone-300"></div>
+                            </div>
+                        </div>
+                         <!-- Vertical Arrow for Mobile -->
+                         <div class="md:hidden flex flex-col items-center justify-center text-stone-400 h-12">
+                            <div class="w-0.5 h-full bg-stone-300 relative">
+                                <div class="absolute -bottom-1 -left-1.5 border-l-4 border-r-4 border-t-8 border-transparent border-t-stone-300"></div>
+                            </div>
+                        </div>
+
+                        <!-- Node 2 -->
+                        <div class="flow-node w-full md:w-1/3 p-4 bg-purple-50 border-2 border-purple-200 rounded-lg text-center cursor-help" onmouseenter="showFlowInfo('lock')" onmouseleave="resetFlowInfo()">
+                            <div class="text-3xl mb-2">🔒</div>
+                            <h4 class="font-bold text-purple-900">uv.lock</h4>
+                            <p class="text-xs text-purple-700 mt-2">Machine Generated</p>
+                            <p class="text-xs text-purple-600">Exact versions & hashes. Do not edit.</p>
+                        </div>
+
+                        <!-- Arrow 2 -->
+                        <div class="hidden md:flex flex-col items-center justify-center text-stone-400 w-1/6">
+                            <span class="text-xs font-mono mb-1">uv sync</span>
+                            <div class="h-0.5 w-full bg-stone-300 relative">
+                                <div class="absolute right-0 -top-1.5 border-t-4 border-b-4 border-l-8 border-transparent border-l-stone-300"></div>
+                            </div>
+                        </div>
+                        <!-- Vertical Arrow for Mobile -->
+                        <div class="md:hidden flex flex-col items-center justify-center text-stone-400 h-12">
+                            <div class="w-0.5 h-full bg-stone-300 relative">
+                                <div class="absolute -bottom-1 -left-1.5 border-l-4 border-r-4 border-t-8 border-transparent border-t-stone-300"></div>
+                            </div>
+                        </div>
+
+                        <!-- Node 3 -->
+                        <div class="flow-node w-full md:w-1/3 p-4 bg-green-50 border-2 border-green-200 rounded-lg text-center cursor-help" onmouseenter="showFlowInfo('venv')" onmouseleave="resetFlowInfo()">
+                            <div class="text-3xl mb-2">📦</div>
+                            <h4 class="font-bold text-green-900">.venv</h4>
+                            <p class="text-xs text-green-700 mt-2">Environment</p>
+                            <p class="text-xs text-green-600">Actual installed packages.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 p-4 bg-stone-50 rounded-lg border border-stone-200 text-sm">
+                        <p id="flow-description" class="text-stone-600 text-center italic">Hover over the blocks above to understand their role.</p>
+                    </div>
+                </div>
+
+                <!-- Explanation Cards -->
+                <div class="lg:col-span-1 space-y-4">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 hover:border-orange-300 transition-colors">
+                        <h3 class="font-bold text-stone-900 mb-2">Initial Setup</h3>
+                        <code class="block bg-stone-100 p-2 rounded text-xs mb-2">uv init</code>
+                        <p class="text-sm text-stone-600">Creates a new project with a standard <code class="text-orange-600">pyproject.toml</code>.</p>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 hover:border-orange-300 transition-colors">
+                        <h3 class="font-bold text-stone-900 mb-2">Adding Packages</h3>
+                        <code class="block bg-stone-100 p-2 rounded text-xs mb-2">uv add requests</code>
+                        <p class="text-sm text-stone-600">Updates <code>pyproject.toml</code> AND <code>uv.lock</code> automatically.</p>
+                    </div>
+
+                    <div class="bg-stone-900 p-6 rounded-xl shadow-sm border border-stone-800 text-white">
+                        <h3 class="font-bold text-orange-400 mb-2">Sync vs Lock</h3>
+                        <div class="space-y-3 text-sm">
+                            <div>
+                                <p class="font-semibold text-white">uv lock</p>
+                                <p class="text-stone-400 text-xs">Resolves dependencies & writes lockfile only. Doesn't touch .venv.</p>
+                            </div>
+                            <div class="border-t border-stone-700 pt-2">
+                                <p class="font-semibold text-white">uv sync</p>
+                                <p class="text-stone-400 text-xs">The "All-in-One". Checks toml, updates lock, AND installs to .venv.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: CHEAT SHEET -->
+        <div id="tab-ref" class="hidden space-y-6 animate-fade-in">
+             <div class="border-l-4 border-orange-500 pl-4 py-1 mb-6 flex justify-between items-end">
+                <div>
+                    <h2 class="text-2xl font-bold text-stone-900">Quick Reference</h2>
+                    <p class="text-stone-600">Searchable list of all essential commands.</p>
+                </div>
+                <div class="w-1/3">
+                    <input type="text" id="commandSearch" placeholder="Search commands..." class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all">
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+                <table class="min-w-full divide-y divide-stone-200">
+                    <thead class="bg-stone-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Action</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Command</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Category</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-stone-200" id="cheatSheetBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+                <div id="noResults" class="hidden p-8 text-center text-stone-500">
+                    No commands found matching your search.
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-white border-t border-stone-200 mt-auto">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-stone-500">
+                Generated based on the UV Python Cheat Sheet & Project Guide.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            activeTab: 'intro',
+            commands: [
+                { action: "Install specific Python", command: "uv python install 3.12", category: "Python Mgmt" },
+                { action: "List available Pythons", command: "uv python list", category: "Python Mgmt" },
+                { action: "List installed Pythons", command: "uv python list --installed", category: "Python Mgmt" },
+                { action: "Find a specific Python", command: "uv python find 3.12", category: "Python Mgmt" },
+                { action: "Create venv (default)", command: "uv venv", category: "Virtual Env" },
+                { action: "Create venv (specific ver)", command: "uv venv --python 3.12", category: "Virtual Env" },
+                { action: "Create venv (custom path)", command: "uv venv --python /usr/bin/python3.10", category: "Virtual Env" },
+                { action: "Create venv (custom name)", command: "uv venv my_env", category: "Virtual Env" },
+                { action: "Activate venv (Linux/Mac)", command: "source .venv/bin/activate", category: "Virtual Env" },
+                { action: "Activate venv (Windows)", command: ".venv\\Scripts\\activate", category: "Virtual Env" },
+                { action: "Delete venv", command: "rm -rf .venv", category: "Virtual Env" },
+                { action: "Init project", command: "uv init", category: "Workflow" },
+                { action: "Add dependency", command: "uv add requests", category: "Workflow" },
+                { action: "Sync environment", command: "uv sync", category: "Workflow" },
+                { action: "Update lockfile only", command: "uv lock", category: "Workflow" },
+                { action: "Run script ephemeral", command: "uv run script.py", category: "Quick" },
+                { action: "Install from requirements", command: "uv pip install -r requirements.txt", category: "Quick" },
+                { action: "Generate requirements", command: "uv pip compile pyproject.toml -o requirements.txt", category: "Quick" },
+                { action: "View dependency tree", command: "uv tree", category: "Quick" }
+            ],
+            terminalData: {
+                install_py: { cmd: "uv python install 3.12", output: "Downloading Python 3.12.1...\nInstalling Python 3.12.1 to /home/user/.local/share/uv/python/cpython-3.12.1\n+ Python 3.12.1 installed", info: "Downloads and installs a standalone Python version managed by uv." },
+                list_py: { cmd: "uv python list", output: "cpython-3.12.1    <downloaded>\ncpython-3.11.8    <available>\ncpython-3.10.13   <available>\n...", info: "Shows available python versions to install." },
+                find_py: { cmd: "uv python find 3.12", output: "/home/user/.local/share/uv/python/cpython-3.12.1/bin/python3", info: "Locates the executable path for a specific version." },
+                venv_default: { cmd: "uv venv", output: "Using Python 3.12.1\nCreating virtual environment at: .venv\n+ Activated virtual environment", info: "Creates a .venv folder using the latest available Python." },
+                venv_specific: { cmd: "uv venv --python 3.12", output: "Using Python 3.12.1\nCreating virtual environment at: .venv", info: "Creates a .venv explicitly using Python 3.12." },
+                venv_custom: { cmd: "uv venv my_env", output: "Using Python 3.12.1\nCreating virtual environment at: my_env", info: "Creates a virtual environment with a custom directory name." },
+                venv_activate: { cmd: "source .venv/bin/activate", output: "( .venv ) user@machine:~/project $", info: "Standard activation command (Linux/macOS). Windows uses .venv\\Scripts\\activate." }
+            }
+        };
+
+        // --- Navigation ---
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('[id^="nav-"]').forEach(el => {
+                el.classList.remove('tab-active');
+                el.classList.add('tab-inactive');
+            });
+
+            // Show selected tab
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const navBtn = document.getElementById(`nav-${tabId}`);
+            navBtn.classList.remove('tab-inactive');
+            navBtn.classList.add('tab-active');
+
+            state.activeTab = tabId;
+
+            // Render chart if opening intro tab for first time/revisiting
+            if (tabId === 'intro') {
+                renderSpeedChart();
+            }
+        }
+
+        // --- Terminal Interaction ---
+        function updateTerminal(key) {
+            const data = state.terminalData[key];
+            const inputEl = document.getElementById('terminal-input');
+            const contentEl = document.getElementById('terminal-content');
+            const infoEl = document.getElementById('terminal-explanation');
+
+            if (!data) return;
+
+            // Reset
+            inputEl.textContent = "";
+            
+            // Typewriter effect for command
+            let i = 0;
+            const typeCommand = setInterval(() => {
+                if (i < data.cmd.length) {
+                    inputEl.textContent += data.cmd.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typeCommand);
+                    // Show output after delay
+                    setTimeout(() => {
+                        contentEl.innerHTML += `<div class="mt-2"><span class="text-green-500">➜</span> ${data.cmd}</div>`;
+                        contentEl.innerHTML += `<pre class="whitespace-pre-wrap text-stone-400 mt-1 mb-4">${data.output}</pre>`;
+                        // Auto scroll to bottom
+                        const terminalContainer = contentEl.parentElement;
+                        terminalContainer.scrollTop = terminalContainer.scrollHeight;
+                        // Clear input line for next command illusion
+                        inputEl.textContent = "";
+                    }, 400);
+                }
+            }, 30); // Typing speed
+
+            // Update info box
+            infoEl.innerHTML = `<span class="font-bold text-orange-400">Command:</span> <code class="bg-stone-700 px-1 rounded">${data.cmd}</code><br><span class="text-stone-400">${data.info}</span>`;
+        }
+
+        // --- Flowchart Logic ---
+        function showFlowInfo(node) {
+            const desc = document.getElementById('flow-description');
+            if (node === 'toml') {
+                desc.innerHTML = "<span class='font-bold text-blue-800'>pyproject.toml:</span> Your wishlist. You tell uv 'I want requests'. You edit this file manually.";
+            } else if (node === 'lock') {
+                desc.innerHTML = "<span class='font-bold text-purple-800'>uv.lock:</span> The receipts. uv records exactly what was installed (versions, hashes) to ensure consistency. <span class='font-bold text-red-600'>Never edit this manually.</span>";
+            } else if (node === 'venv') {
+                desc.innerHTML = "<span class='font-bold text-green-800'>.venv:</span> The reality. The actual folder where Python and packages live. <span class='font-bold'>uv sync</span> makes this match the lockfile.";
+            }
+        }
+
+        function resetFlowInfo() {
+            document.getElementById('flow-description').innerHTML = "Hover over the blocks above to understand their role.";
+        }
+
+        // --- Cheat Sheet Logic ---
+        function renderCheatSheet(filter = "") {
+            const tbody = document.getElementById('cheatSheetBody');
+            tbody.innerHTML = "";
+            
+            const filtered = state.commands.filter(item => 
+                item.action.toLowerCase().includes(filter.toLowerCase()) || 
+                item.command.toLowerCase().includes(filter.toLowerCase()) ||
+                item.category.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                document.getElementById('noResults').classList.remove('hidden');
+            } else {
+                document.getElementById('noResults').classList.add('hidden');
+                filtered.forEach(item => {
+                    const row = `
+                        <tr class="hover:bg-stone-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">${item.action}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-600 font-mono bg-stone-50 rounded select-all">${item.command}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-stone-500"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-stone-100 text-stone-800">${item.category}</span></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            }
+        }
+
+        document.getElementById('commandSearch').addEventListener('input', (e) => {
+            renderCheatSheet(e.target.value);
+        });
+
+        // --- Chart Initialization ---
+        let speedChart = null;
+        function renderSpeedChart() {
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            
+            if (speedChart) {
+                // If chart already exists, don't recreate it to prevent animation jitter on tab switch
+                return; 
+            }
+
+            speedChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Pip', 'Pip-tools', 'UV'],
+                    datasets: [{
+                        label: 'Resolution Time (Conceptual)',
+                        data: [100, 80, 10], // Conceptual data representing "Extremely Fast"
+                        backgroundColor: [
+                            'rgba(168, 162, 158, 0.5)', // stone-400
+                            'rgba(168, 162, 158, 0.5)', 
+                            'rgba(234, 88, 12, 0.8)'    // orange-600
+                        ],
+                        borderColor: [
+                            'rgba(168, 162, 158, 1)',
+                            'rgba(168, 162, 158, 1)',
+                            'rgba(234, 88, 12, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.label === 'UV') return "Extremely Fast (Rust-based)";
+                                    return "Standard Python Speed";
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            display: false // Hide axis for conceptual chart
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            renderCheatSheet();
+            renderSpeedChart();
+        });
+
+    </script>
+</body>
+</html>
