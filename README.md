@@ -4,7 +4,7 @@ A curated collection of interactive single-page applications (SPAs), financial t
 
 ## 🚀 Live Demo
 You can access the main interactive hub here:
-**[Main Hub Landing Page](#)** *(Replace with your link)*
+**[Main Hub Landing Page](#)** *(https://vgandhi1.github.io/web-interactive-collection/)*
 
 ---
 
