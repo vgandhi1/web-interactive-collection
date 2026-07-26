@@ -102,8 +102,18 @@ to the device's normal resolver. All intended:
 - Phones on cellular are **not** forced through Pi-hole — no broken captive portals.
 - `*.datasharkvag.com` resolves through public DNS exactly as it does for any visitor.
 
-Enabling it would make Pi-hole the global nameserver for every device anywhere,
-which this homelab explicitly rejected.
+Enabling it would make Pi-hole the global nameserver for every device anywhere.
+
+**Why it is off here.** This is a deliberate reversal, not a default. At the
+previous apartment override was **on** and worked well. This building supplies
+the internet and controls the traffic — the same lack of control over the edge
+network that puts the connection behind CGNAT and forces the tunnel in
+[TUNNEL-ARCHITECTURE.md](TUNNEL-ARCHITECTURE.md) §0. With override on, every DNS
+query from every device round-trips to the Pi Zero across a link we do not own:
+if that link or the Pi drops, the phone has no DNS at all — not degraded, none.
+Captive portals on building and guest networks break for the same reason. One
+constraint, two consequences: the tunnel exists because we cannot accept inbound,
+and override is off because we cannot depend on outbound.
 
 **What it costs.** Tailscale's wording is that devices "prefer their local DNS
 settings and only use the tailnet's DNS servers when needed", so the trade is
@@ -117,11 +127,17 @@ real and worth stating:
 | Custom names break off-LAN | Any local A records in Pi-hole stop resolving once you leave. |
 | Split visibility | Pi-hole's dashboard sees LAN traffic only, and the same device gets different answers at home and away. |
 
-**The middle option** is split DNS (restricted nameservers), which routes chosen
-domains to a chosen nameserver independently of this toggle. That gets internal
-name resolution everywhere without forcing every query through the Pi Zero and
-without breaking captive portals — the fix to reach for if the inert-nameserver
-point starts to matter.
+**Split DNS is not the fix for the first row.** Restricted nameservers route
+domains you name to a nameserver you choose, independently of this toggle — good
+for internal name resolution everywhere, useless for ad-blocking, which needs
+every arbitrary domain inspected. Reach for it to recover custom Pi-hole records
+off-LAN, not to recover filtering.
+
+**Filtering that follows the device** rather than the network means a hosted
+resolver profile — NextDNS or ControlD as DoH/DoT on the phone. It survives home
+being offline, does not break captive portals the way override-on does, and
+leaves Pi-hole doing what it is good at on the LAN. The cost is a few dollars a
+year and the query log moving to a third party.
 
 ---
 

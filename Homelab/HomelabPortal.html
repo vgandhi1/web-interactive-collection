@@ -396,7 +396,10 @@
                                 Devices keep their own resolver and use the tailnet's only when needed. Captive portals work, and phones on cellular are not forced through the Pi Zero.
                             </p>
                             <p className="text-base text-emerald-700 mt-3 leading-relaxed">
-                                <strong>The trade:</strong> Pi-hole then filters only at home. Off-LAN you use the local network's resolver — no ad-blocking, and any custom names in Pi-hole stop resolving. Split DNS routes chosen domains to Pi-hole without forcing all queries through it, if that matters later.
+                                <strong>Why, specifically.</strong> The building supplies the internet and controls the traffic here — the same reason this connection sits behind CGNAT. Override <em>on</em> would make every DNS query from every device round-trip to the Pi Zero over a link we do not control: if it drops, the phone has no DNS at all, not degraded but none. Override on worked well at the previous apartment. It is the wrong setting for this one.
+                            </p>
+                            <p className="text-base text-emerald-700 mt-3 leading-relaxed">
+                                <strong>The trade:</strong> Pi-hole then filters on the home LAN only. Off it you use the local network's resolver — no ad-blocking, and custom Pi-hole records stop resolving. Split DNS recovers the <em>internal names</em> but not the blocking, since ad-blocking needs every arbitrary domain inspected and split DNS only routes ones you name. Filtering that follows the device instead of the network needs a hosted resolver profile (NextDNS, ControlD) — which also survives home being offline.
                             </p>
                         </div>
 
