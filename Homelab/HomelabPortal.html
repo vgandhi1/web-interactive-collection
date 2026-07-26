@@ -121,7 +121,8 @@
                 { id: 'overview', name: 'Architecture', icon: 'layout' },
                 { id: 'docker', name: 'Docker Stack', icon: 'hard-drive' },
                 { id: 'networking', name: 'Networking & SSL', icon: 'globe' },
-                { id: 'pihole', name: 'Pi-hole (Remote)', icon: 'shield' },
+                { id: 'tailscale', name: 'Tailscale & MagicDNS', icon: 'network' },
+                { id: 'pihole', name: 'Pi-hole', icon: 'shield' },
                 { id: 'sensornode', name: 'Sensor Node (Pi-hat)', icon: 'thermometer' },
                 { id: 'commands', name: 'Linux Commands', icon: 'command' },
                 { id: 'guides', name: 'Setup Guides', icon: 'book-open' },
@@ -138,86 +139,56 @@
                         {/* Mermaid Diagram Container */}
                         <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200 shadow-sm mermaid-container">
                             <div className="mermaid">
-{`flowchart LR
-    User["🌐 User Device"]
-    
-    subgraph Access["🌐 Access Methods"]
-        CF["☁️ Cloudflare Edge"]
-        TS["🔐 Tailscale VPN"]
-    end
-    
-    subgraph MainServer["🖥️ Main Server - Pi 4B"]
+{`flowchart TB
+    PubUser["🌐 Public Visitor"]
+    PrivUser["📱 You — on Tailscale"]
+
+    CF["☁️ Cloudflare Tunnel"]
+    TS["🔐 Tailscale + MagicDNS<br/>(peer-to-peer)"]
+
+    subgraph Pi4["🖥️ Main Server — Pi 4B"]
         direction TB
-        Tunnel["🔒 Cloudflared Tunnel"]
-        NPM["⚙️ Nginx Proxy Manager"]
-        
-        subgraph PublicApps["🌍 Public Apps"]
-            Static["🌤️ WeatherApp"]
-        end
-        
-        subgraph PrivateApps["🔒 Private Apps"]
-            direction TB
-            Nextcloud["☁️ Nextcloud"]
-            Portainer["🐳 Portainer"]
-        end
-        
-        subgraph MonitoringData["📊 Monitoring & Data"]
-            direction TB
-            Grafana["📊 Grafana"]
-            HA["🏠 Home Assistant"]
-            Influx["📈 InfluxDB"]
-        end
-        
-        subgraph Storage["💾 Storage"]
-            direction TB
-            MariaDB["🗄️ MariaDB"]
-            HDD[("💿 External HDD")]
-        end
+        NPM["⚙️ Nginx Proxy Manager<br/>SSL + routing"]
+        Public["🌤️ Public Apps<br/>Weather · Hedging"]
+        Private["🔒 Private Apps<br/>Nextcloud · Grafana · Home Assistant · Portainer"]
+        Data[("💾 Data<br/>InfluxDB · MariaDB · HDD")]
     end
-    
-    subgraph Remote["🌍 Remote Nodes"]
+
+    subgraph Nodes["🌍 Other Raspberry Pis"]
         direction TB
-        PiZero["🛡️ Pi-hole"]
-        Sensor["🌡️ Sensor Node"]
+        PiHole["🛡️ Pi-hole — Pi Zero<br/>LAN ad-blocking"]
+        Sensor["🌡️ Sensor Node<br/>Sense HAT"]
     end
-    
-    %% Public Flow - Cloudflare Tunnel
-    User -->|HTTPS| CF
-    CF -->|Tunnel| Tunnel
-    Tunnel --> NPM
-    NPM -->|Route| Static
-    
-    %% Private Flow - Tailscale VPN
-    User -->|VPN| TS
-    TS -->|Private| NPM
-    NPM -->|Route| Nextcloud
-    NPM -->|Route| Portainer
-    NPM -->|Route| Grafana
-    NPM -->|Route| HA
-    
-    %% Data Connections - Clean Layout
-    Nextcloud --> MariaDB
-    Nextcloud --> HDD
-    Influx -->|Read| Grafana
-    HA -->|Write| Influx
-    Sensor -->|Write| Influx
-    NPM -.->|Proxy| PiZero
-    
+
+    %% Public path
+    PubUser -->|HTTPS| CF
+    CF --> NPM
+    NPM --> Public
+
+    %% Private path
+    PrivUser -->|encrypted peer link| TS
+    TS --> NPM
+    NPM --> Private
+    Private --> Data
+
+    %% Sensor writes metrics
+    Sensor -->|writes metrics| Data
+
     %% Styling
-    classDef internet fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#000
-    classDef public fill:#fef3c7,stroke:#f59e0b,stroke-width:3px,color:#000
-    classDef private fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#000
+    classDef pub fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#000
     classDef vpn fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#000
     classDef router fill:#ede9fe,stroke:#7c3aed,stroke-width:3px,color:#000
+    classDef private fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#000
     classDef data fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#000
     classDef remote fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#000
-    
-    class User,CF internet
-    class Tunnel,PublicApps public
-    class TS,PrivateApps vpn
+
+    class PubUser,CF pub
+    class PrivUser,TS vpn
     class NPM router
-    class Influx,MariaDB,HDD data
-    class PiZero,Sensor remote`}
+    class Public pub
+    class Private private
+    class Data data
+    class PiHole,Sensor remote`}
                             </div>
                         </div>
 
@@ -235,14 +206,14 @@
                             </div>
                             <div className="p-6 md:p-7 bg-blue-50 border border-blue-200 rounded-xl">
                                 <h3 className="flex items-center text-base font-semibold text-blue-700 mb-3">
-                                    <Icon name="lock" className="mr-2 w-5 h-5" /> Private Zone - Tailscale VPN
+                                    <Icon name="lock" className="mr-2 w-5 h-5" /> Private Zone - Tailscale + MagicDNS
                                 </h3>
-                                <p className="text-sm text-blue-600 mb-3">Accessible only via Tailscale VPN (private network)</p>
+                                <p className="text-sm text-blue-600 mb-3">Reachable only over your Tailscale peer-to-peer network (MagicDNS, override DNS off)</p>
                                 <ul className="text-base text-blue-900 space-y-2">
                                     <li>• Home Assistant (Host Mode)</li>
-                                    <li>• Nextcloud & Tailscale Node</li>
-                                    <li>• Portainer CE Management</li>
-                                    <li>• Grafana</li> & InfluxDB (Sensor Data)
+                                    <li>• Nextcloud (personal cloud)</li>
+                                    <li>• Portainer CE (Docker UI)</li>
+                                    <li>• Grafana + InfluxDB (sensor data)</li>
                                 </ul>
                             </div>
                         </div>
@@ -281,58 +252,83 @@
                             </div>
                             <div className="p-6 border rounded-xl bg-white shadow-sm">
                                 <h4 className="font-bold text-slate-700 text-base">Private Flow</h4>
-                                <p className="text-sm text-slate-500 mt-2 uppercase tracking-wide">{"User -> Tailscale -> NPM (SSL) -> App"}</p>
+                                <p className="text-sm text-slate-500 mt-2 uppercase tracking-wide">{"You -> Tailscale (MagicDNS) -> NPM (SSL) -> App"}</p>
+                            </div>
+                        </div>
+                    </div>
+                ),
+                tailscale: (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold text-slate-800">Tailscale & MagicDNS</h2>
+                        <p className="text-slate-600 text-base leading-relaxed">
+                            Every device (phone, laptop, each Pi) runs the Tailscale client and joins one private network (a <strong>tailnet</strong>). Connections are <strong>peer-to-peer</strong> and end-to-end encrypted — no port forwarding, no exposing your home IP.
+                        </p>
+
+                        <div className="p-6 md:p-7 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-xl">
+                            <h4 className="text-lg font-bold text-indigo-800">MagicDNS — names instead of IPs</h4>
+                            <p className="text-base text-indigo-700 mt-2 leading-relaxed">
+                                MagicDNS gives every machine a stable name, so you reach the main server at
+                                <span className="font-mono bg-white px-1.5 py-0.5 rounded text-sm mx-1">mainserver.your-tailnet.ts.net</span>
+                                from anywhere — no need to memorise the <span className="font-mono">100.x.y.z</span> Tailscale IP.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                <h4 className="font-bold text-emerald-800 text-base mb-2 flex items-center">
+                                    <Icon name="check-circle" className="mr-2 w-5 h-5" /> Override DNS: OFF
+                                </h4>
+                                <p className="text-sm text-emerald-700 leading-relaxed">
+                                    In the Tailscale admin <span className="font-mono bg-white px-1 rounded">DNS</span> tab, <strong>"Override local DNS"</strong> is left <strong>disabled</strong>. MagicDNS only resolves tailnet names; each device keeps its own normal DNS for everything else. Simple and no surprises.
+                                </p>
+                            </div>
+                            <div className="p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
+                                <h4 className="font-bold text-slate-700 text-base mb-2 flex items-center">
+                                    <Icon name="list-checks" className="mr-2 w-5 h-5" /> One-time setup
+                                </h4>
+                                <ul className="list-disc ml-5 text-sm text-slate-600 space-y-2 leading-relaxed">
+                                    <li>Install Tailscale on each device and sign in to the same account.</li>
+                                    <li>Admin console → <span className="font-mono bg-slate-100 px-1 rounded">DNS</span> → enable <strong>MagicDNS</strong>.</li>
+                                    <li>Leave <strong>"Override local DNS"</strong> unchecked.</li>
+                                    <li>Reach services by their <span className="font-mono">.ts.net</span> name.</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
                 ),
                 pihole: (
                     <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-slate-800">Pi-hole Distribution</h2>
-                        
+                        <h2 className="text-2xl font-bold text-slate-800">Pi-hole (Home Ad-Blocking)</h2>
+                        <p className="text-slate-600 text-base leading-relaxed">
+                            Pi-hole runs on a dedicated Pi Zero and blocks ads for everything on the home network. It is kept simple: <strong>LAN-only</strong>. Because Tailscale's "Override local DNS" is off, roaming devices use their own DNS — Pi-hole is not forced onto phones on cellular.
+                        </p>
+
                         <div className="grid gap-8">
                             {/* Local Config */}
                             <div className="p-7 md:p-8 bg-amber-50 border border-amber-200 rounded-xl">
                                 <p className="text-amber-800 font-bold text-base flex items-center mb-3">
-                                    <Icon name="home" className="mr-2 w-5 h-5" /> Local Network Blocking
-                                </p>
-                                <p className="text-base text-amber-700 mb-3 leading-relaxed">
-                                    Primary ad-blocking for devices on the home Wi-Fi/LAN.
+                                    <Icon name="home" className="mr-2 w-5 h-5" /> How it blocks ads at home
                                 </p>
                                 <ul className="list-disc ml-6 text-sm text-amber-900 space-y-2 leading-relaxed">
-                                    <li>Pi-hole runs on a dedicated Pi Zero.</li>
-                                    <li>Router DHCP settings point DNS to Pi Zero IP.</li>
-                                    <li>All home traffic is filtered automatically.</li>
+                                    <li>Pi-hole runs on a dedicated Pi Zero with a static IP.</li>
+                                    <li>Router DHCP hands out the Pi Zero IP as the DNS server.</li>
+                                    <li>Every device on the home Wi-Fi/LAN is filtered automatically — no per-device setup.</li>
                                 </ul>
                             </div>
 
-                            {/* Remote Config */}
+                            {/* Remote access */}
                             <div className="p-7 md:p-8 bg-indigo-50 border border-indigo-200 rounded-xl">
                                 <p className="text-indigo-800 font-bold text-base flex items-center mb-3">
-                                    <Icon name="smartphone" className="mr-2 w-5 h-5" /> Remote Ad Blocking (Tailscale DNS Magic)
+                                    <Icon name="settings" className="mr-2 w-5 h-5" /> Manage it remotely
                                 </p>
-                                <p className="text-base text-indigo-700 mb-4 leading-relaxed">
-                                    Enables ad-blocking on mobile devices anywhere in the world via VPN using Tailscale's global nameserver feature.
+                                <p className="text-base text-indigo-700 mb-3 leading-relaxed">
+                                    Add the Pi Zero to your tailnet so you can open the admin dashboard from anywhere over Tailscale.
                                 </p>
-                                <div className="space-y-4 mt-4">
-                                    <div className="bg-white p-5 md:p-6 rounded-xl border border-indigo-100">
-                                        <p className="text-sm font-semibold text-indigo-900 mb-2">Step 1: Pi-hole Settings (Pi Zero)</p>
-                                        <p className="text-sm text-slate-600 leading-relaxed">
-                                            Go to <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-xs">Settings &gt; DNS &gt; Interface Settings</span> and select 
-                                            <span className="font-bold text-indigo-600"> "Permit all origins"</span>. 
-                                            This is required because VPN traffic appears to come from the Tailscale subnet (100.x.x.x), not your local LAN.
-                                        </p>
-                                    </div>
-                                    <div className="bg-white p-5 md:p-6 rounded-xl border border-indigo-100">
-                                        <p className="text-sm font-semibold text-indigo-900 mb-2">Step 2: Tailscale Admin Console</p>
-                                        <ul className="list-disc ml-5 text-sm text-slate-600 space-y-2 leading-relaxed">
-                                            <li>Navigate to the <span className="font-mono bg-slate-100 px-1 rounded">DNS</span> tab in the Tailscale dashboard.</li>
-                                            <li>Under "Global Nameservers", click "Add Nameserver".</li>
-                                            <li>Enter the <strong>Tailscale IP Address</strong> of your Pi Zero.</li>
-                                            <li>Enable <strong>"Override Local DNS"</strong>. This forces all connected devices to use Pi-hole for DNS, blocking ads even on cellular data.</li>
-                                        </ul>
-                                    </div>
-                                </div>
+                                <ul className="list-disc ml-6 text-sm text-indigo-900 space-y-2 leading-relaxed">
+                                    <li>Install Tailscale on the Pi Zero (same account as the rest).</li>
+                                    <li>Reach the dashboard at <span className="font-mono bg-white px-1.5 py-0.5 rounded text-xs">http://pihole.your-tailnet.ts.net/admin</span> via MagicDNS.</li>
+                                    <li>No global nameserver, no "Override local DNS", no "Permit all origins" needed — the setup stays minimal.</li>
+                                </ul>
                             </div>
                         </div>
                     </div>

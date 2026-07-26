@@ -41,10 +41,9 @@ The landing page groups artifacts into three areas (in-page anchors):
 
 **Homelab folder** ([Homelab/](Homelab/)):
 
-- [HomelabPortal.html](Homelab/HomelabPortal.html) — interactive setup guide
-- [README.md](Homelab/README.md) — stack architecture (NPM, Nextcloud, Grafana, Tailscale, etc.)
-- [docker-compose-template.yml](Homelab/docker-compose-template.yml)
-- [Linux_Cheat_Sheet.md](Homelab/Linux_Cheat_Sheet.md)
+- [HomelabPortal.html](Homelab/HomelabPortal.html) — interactive setup guide + architecture diagram
+- [README.md](Homelab/README.md) — beginner walkthrough: public (Cloudflare Tunnel) vs private (Tailscale + MagicDNS), stack, commands
+- [docker-compose-template.yml](Homelab/docker-compose-template.yml) — deployable stack
 
 ### Tools & simulators (`#tools`)
 
