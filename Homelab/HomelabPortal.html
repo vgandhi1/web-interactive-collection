@@ -449,6 +449,50 @@
                                 </ul>
                             </div>
                         </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3 flex items-center">
+                                <Icon name="check-circle" className="mr-2 w-5 h-5" /> Is it actually blocking?
+                            </h4>
+                            <p className="text-base text-slate-600 leading-relaxed">
+                                Filtering follows the <strong>network</strong>, not the device: on home Wi-Fi yes, off it no. Three checks, from a device on the home network.
+                            </p>
+
+                            <p className="text-base text-slate-600 mt-4 mb-2"><strong>1. Does a known ad domain resolve to nothing?</strong></p>
+                            <div className="bg-slate-800 rounded-lg p-4 font-mono text-xs md:text-sm text-emerald-300 overflow-x-auto">
+                                <pre>{`nslookup doubleclick.net
+# blocked   -> 0.0.0.0 (or the Pi-hole IP)
+# NOT blocked -> a real public address`}</pre>
+                            </div>
+
+                            <p className="text-base text-slate-600 mt-4 mb-2"><strong>2. Which resolver is the device actually using?</strong></p>
+                            <div className="bg-slate-800 rounded-lg p-4 font-mono text-xs md:text-sm text-emerald-300 overflow-x-auto">
+                                <pre>{`scutil --dns | grep nameserver     # macOS
+nmcli dev show | grep DNS          # Linux
+Get-DnsClientServerAddress         # Windows`}</pre>
+                            </div>
+                            <p className="text-base text-slate-600 mt-2 leading-relaxed">
+                                It should be the Pi Zero's static IP. Anything else means DHCP is not handing out what you think.
+                            </p>
+
+                            <p className="text-base text-slate-600 mt-4 mb-2"><strong>3. Is Pi-hole seeing the traffic?</strong></p>
+                            <p className="text-base text-slate-600 leading-relaxed">
+                                Open the dashboard and watch <strong>Query Log</strong> while browsing. An empty log means nothing is reaching Pi-hole, regardless of what the other checks say. The home screen's blocked percentage tells you how much work it is doing.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-rose-50 border-l-4 border-rose-500 rounded-r-xl">
+                            <h4 className="font-bold text-rose-800 text-base mb-2">Why you may still see ads at home</h4>
+                            <p className="text-base text-rose-700 leading-relaxed">
+                                Pi-hole can be up and healthy while traffic routes around it entirely:
+                            </p>
+                            <ul className="text-base text-rose-700 mt-3 space-y-2 leading-relaxed">
+                                <li>• <strong>DNS-over-HTTPS in the browser</strong> — the most common cause by far. Firefox enables DoH by default in some regions and Chrome has "Secure DNS"; either resolves over HTTPS to Cloudflare or Google and never consults your DNS setting. Turn it off per browser.</li>
+                                <li>• <strong>Hardcoded DNS</strong> — smart TVs, Chromecasts and some IoT devices ignore DHCP and talk to <span className="font-mono text-sm">8.8.8.8</span> directly.</li>
+                                <li>• <strong>iOS Private Relay</strong> routes DNS around local resolvers on Apple devices.</li>
+                                <li>• <strong>In-app and first-party ads</strong> — Pi-hole blocks by domain, so anything served from the same domain as the content (YouTube being the classic) gets through regardless.</li>
+                            </ul>
+                        </div>
                     </div>
                 ),
                 sensornode: (
