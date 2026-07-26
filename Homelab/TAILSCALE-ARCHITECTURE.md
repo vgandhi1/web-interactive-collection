@@ -105,6 +105,24 @@ to the device's normal resolver. All intended:
 Enabling it would make Pi-hole the global nameserver for every device anywhere,
 which this homelab explicitly rejected.
 
+**What it costs.** Tailscale's wording is that devices "prefer their local DNS
+settings and only use the tailnet's DNS servers when needed", so the trade is
+real and worth stating:
+
+| Cost | Detail |
+|---|---|
+| No filtering off-LAN | Pi-hole blocks ads at home only. On cellular or café Wi-Fi you use their resolver, unfiltered. |
+| The nameserver entry does little | With local DNS preferred, Pi-hole is largely inert for general queries. The field is carrying less weight than it appears to. |
+| Untrusted resolvers away | Hotel and café DNS can hijack or inject; you take whatever the network hands out. |
+| Custom names break off-LAN | Any local A records in Pi-hole stop resolving once you leave. |
+| Split visibility | Pi-hole's dashboard sees LAN traffic only, and the same device gets different answers at home and away. |
+
+**The middle option** is split DNS (restricted nameservers), which routes chosen
+domains to a chosen nameserver independently of this toggle. That gets internal
+name resolution everywhere without forcing every query through the Pi Zero and
+without breaking captive portals — the fix to reach for if the inert-nameserver
+point starts to matter.
+
 ---
 
 ## 3. Applied AI lab — what runs where
