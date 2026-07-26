@@ -31,24 +31,58 @@
             to { opacity: 1; transform: translateY(0); }
         }
         /* Mermaid styling adjustment */
-        .mermaid { 
-            display: flex; 
+        .mermaid {
+            display: flex;
             justify-content: center;
+            /* "safe" keeps an over-wide diagram from being clipped on its left
+               edge, where centred overflow is unreachable by scrolling. */
+            justify-content: safe center;
             width: 100%;
         }
         
+        /* Sizes to the diagram's natural height; scrolls only when a diagram is
+           genuinely larger than the viewport. */
         .mermaid-container {
-            overflow-x: auto;
-            overflow-y: auto;
-            padding: 1.75rem 2rem;
+            overflow: auto;
+            padding: 1.5rem;
             width: 100%;
-            min-height: min(72vh, 920px);
-            max-height: min(88vh, 1000px);
+            max-height: min(92vh, 1500px);
         }
         
+        /* Render at natural size and let the container scroll. Clamping the SVG
+           to 100% shrank wide diagrams until the label text was unreadable. */
         .mermaid svg {
-            max-width: 100% !important;
+            max-width: none !important;
             height: auto !important;
+        }
+
+        /* Contrast only. Do NOT set font-weight or font-size here: mermaid
+           measures label text to size each node, so restyling afterwards makes
+           the text wider than the box it was measured for. */
+        .mermaid .nodeLabel,
+        .mermaid .nodeLabel p,
+        .mermaid .cluster-label,
+        .mermaid .cluster-label p {
+            color: #0f172a !important;
+            line-height: 1.35;
+        }
+
+        /* Edge labels sit on top of the connector line; without an opaque
+           backing the text is unreadable where they overlap. */
+        .mermaid .edgeLabel {
+            background-color: #ffffff !important;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .mermaid .edgeLabel,
+        .mermaid .edgeLabel p {
+            color: #0f172a !important;
+            background-color: #ffffff !important;
+        }
+
+        .mermaid .cluster rect {
+            fill: #f8fafc !important;
+            stroke: #cbd5e1 !important;
         }
 
         /* Sensor node detail schematic: larger tap targets and readable flow */
@@ -70,15 +104,17 @@
             securityLevel: 'loose',
             fontFamily: 'Inter',
             flowchart: {
-                useMaxWidth: true,
+                // false = render at natural size; the container scrolls instead
+                // of the diagram being scaled down until text is illegible.
+                useMaxWidth: false,
                 htmlLabels: true,
                 curve: 'basis',
-                padding: 32,
-                nodeSpacing: 120,
-                rankSpacing: 150
+                padding: 14,
+                nodeSpacing: 45,
+                rankSpacing: 50
             },
             themeVariables: {
-                fontSize: '24px',
+                fontSize: '16px',
                 fontFamily: 'Inter, sans-serif',
                 primaryColor: '#e0e7ff',
                 primaryTextColor: '#1e293b',
@@ -110,10 +146,16 @@
                     window.lucide.createIcons();
                 }
                 if (window.mermaid) {
-                    // Slight delay to ensure DOM is ready for mermaid
-                    setTimeout(() => {
-                        window.mermaid.contentLoaded();
-                    }, 100);
+                    // Mermaid measures label text to size each node. Inter loads
+                    // asynchronously via @import, so rendering before it arrives
+                    // sizes every box to fallback-font metrics and the real text
+                    // then overflows. Wait for the font, then render.
+                    const render = () => window.mermaid.contentLoaded();
+                    if (document.fonts && document.fonts.ready) {
+                        document.fonts.ready.then(() => setTimeout(render, 50));
+                    } else {
+                        setTimeout(render, 150);
+                    }
                 }
             }, [activeSection]); // Add activeSection as dependency
 
@@ -140,55 +182,47 @@
                         <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200 shadow-sm mermaid-container">
                             <div className="mermaid">
 {`flowchart TB
-    PubUser["🌐 Public Visitor"]
-    PrivUser["📱 You — on Tailscale"]
+    PubUser["🌐 Public<br/>visitor"]
+    PrivUser["📱 You<br/>any browser"]
 
-    CF["☁️ Cloudflare Tunnel"]
-    TS["🔐 Tailscale + MagicDNS<br/>(peer-to-peer)"]
-
-    subgraph Pi4["🖥️ Main Server — Pi 4B"]
+    subgraph CFedge["☁️ Cloudflare Edge"]
         direction TB
-        NPM["⚙️ Nginx Proxy Manager<br/>SSL + routing"]
-        Public["🌤️ Public Apps<br/>Weather · Hedging"]
-        Private["🔒 Private Apps<br/>Nextcloud · Grafana · Home Assistant · Portainer"]
-        Data[("💾 Data<br/>InfluxDB · MariaDB · HDD")]
+        DNS["DNS + TLS"]
+        Access["🔑 Access policy<br/>sign-in required"]
     end
 
-    subgraph Nodes["🌍 Other Raspberry Pis"]
+    subgraph Pi4["🖥️ Pi 4B"]
         direction TB
-        PiHole["🛡️ Pi-hole — Pi Zero<br/>LAN ad-blocking"]
-        Sensor["🌡️ Sensor Node<br/>Sense HAT"]
+        CFD["🔌 cloudflared<br/>outbound only"]
+        NPM["⚙️ Nginx Proxy<br/>Manager"]
+        Public["🌤️ Public apps<br/>Weather<br/>Hedging"]
+        Private["🔒 Private apps<br/>Nextcloud<br/>Grafana<br/>Portainer"]
+        Data[("💾 Data<br/>InfluxDB<br/>MariaDB")]
     end
 
-    %% Public path
-    PubUser -->|HTTPS| CF
-    CF --> NPM
+    PubUser --> DNS
+    PrivUser --> DNS
+    DNS -->|open| CFD
+    DNS --> Access
+    Access ==>|gated| CFD
+
+    CFD --> NPM
     NPM --> Public
-
-    %% Private path
-    PrivUser -->|encrypted peer link| TS
-    TS --> NPM
     NPM --> Private
     Private --> Data
 
-    %% Sensor writes metrics
-    Sensor -->|writes metrics| Data
-
-    %% Styling
     classDef pub fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#000
     classDef vpn fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#000
     classDef router fill:#ede9fe,stroke:#7c3aed,stroke-width:3px,color:#000
     classDef private fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#000
     classDef data fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#000
-    classDef remote fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#000
 
-    class PubUser,CF pub
-    class PrivUser,TS vpn
-    class NPM router
+    class PubUser,DNS pub
+    class PrivUser,Access vpn
+    class CFD,NPM router
     class Public pub
     class Private private
-    class Data data
-    class PiHole,Sensor remote`}
+    class Data data`}
                             </div>
                         </div>
 
@@ -197,25 +231,32 @@
                                 <h3 className="flex items-center text-base font-semibold text-amber-700 mb-3">
                                     <Icon name="globe" className="mr-2 w-5 h-5" /> Public Zone - Cloudflare Tunnel
                                 </h3>
-                                <p className="text-sm text-amber-600 mb-3">Accessible via Cloudflare Tunnel (public internet)</p>
+                                <p className="text-sm text-amber-600 mb-3">Open to the internet — no policy</p>
                                 <ul className="text-base text-amber-900 space-y-2">
                                     <li>• weather.datasharkvag.com (Static)</li>
                                     <li>• hedging.datasharkvag.com (Static)</li>
-                                    <li>• Cloudflare Tunnel Relay</li>
                                 </ul>
                             </div>
                             <div className="p-6 md:p-7 bg-blue-50 border border-blue-200 rounded-xl">
                                 <h3 className="flex items-center text-base font-semibold text-blue-700 mb-3">
-                                    <Icon name="lock" className="mr-2 w-5 h-5" /> Private Zone - Tailscale + MagicDNS
+                                    <Icon name="lock" className="mr-2 w-5 h-5" /> Private Zone - Cloudflare Access
                                 </h3>
-                                <p className="text-sm text-blue-600 mb-3">Reachable only over your Tailscale peer-to-peer network (MagicDNS, override DNS off)</p>
+                                <p className="text-sm text-blue-600 mb-3">Same tunnel, gated by an Access policy — allowlisted identities only</p>
                                 <ul className="text-base text-blue-900 space-y-2">
-                                    <li>• Home Assistant (Host Mode)</li>
-                                    <li>• Nextcloud (personal cloud)</li>
-                                    <li>• Portainer CE (Docker UI)</li>
-                                    <li>• Grafana + InfluxDB (sensor data)</li>
+                                    <li>• cloud.datasharkvag.com (Nextcloud web)</li>
+                                    <li>• grafana.datasharkvag.com (dashboards)</li>
+                                    <li>• portainer.datasharkvag.com (Docker UI)</li>
                                 </ul>
                             </div>
+                        </div>
+
+                        <div className="p-5 md:p-6 bg-slate-50 border-l-4 border-slate-400 rounded-r-xl">
+                            <h4 className="flex items-center text-base font-semibold text-slate-700 mb-2">
+                                <Icon name="network" className="mr-2 w-5 h-5" /> Second plane — device connectivity
+                            </h4>
+                            <p className="text-base text-slate-600 leading-relaxed">
+                                One rule decides which plane a service uses: <strong>browser traffic goes on the tunnel, everything else stays on Tailscale.</strong> Home Assistant, Samba, SSH, Pi-hole admin, and Nextcloud sync clients are non-browser or too privileged to publish, so they live on the device plane — see the <strong>Tailscale &amp; MagicDNS</strong> tab.
+                            </p>
                         </div>
                     </div>  
                 ),
@@ -226,7 +267,7 @@
                         <div className="bg-slate-800 rounded-xl p-6 md:p-7 font-mono text-sm md:text-base text-emerald-300 overflow-x-auto border border-slate-700">
                             <pre>{`services:
   nginx: # SSL termination & Proxy
-  cloudflared: # Public Tunnel Access
+  cloudflared: # Tunnel — public + private hostnames
   home_assistant: # Home Automation (Host Mode)
   nextcloud: # Private Storage
   influxdb2: # Time Series Data
@@ -239,21 +280,72 @@
                 networking: (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-slate-800">SSL & Routing Logic</h2>
+
+                        <div className="p-6 md:p-7 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl">
+                            <h4 className="text-lg font-bold text-amber-800">Why a tunnel — CGNAT</h4>
+                            <blockquote className="mt-3 mb-1 pl-4 border-l-2 border-amber-400 text-base text-amber-800 italic leading-relaxed">
+                                "Create secure, outbound-only connections from your infrastructure to Cloudflare without opening inbound ports."
+                                <span className="block not-italic text-sm text-amber-600 mt-1">— Cloudflare Zero Trust dashboard, Networks → Tunnels</span>
+                            </blockquote>
+                            <p className="text-base text-amber-700 mt-3 leading-relaxed">
+                                Note what that promises and what it does not. It covers <em>reachability</em> — outbound-only, no inbound ports. It says nothing about who may reach the app once the hostname is live. That gap is the whole reason for the public/private tier split.
+                            </p>
+                            <p className="text-base text-amber-700 mt-2 leading-relaxed">
+                                The ISP puts this line behind <strong>CGNAT</strong>: one public IP shared across many customers, and the NAT belongs to them. Port forwarding is not misconfigured here — it is unavailable. No router setting can expose port 443, because the address the world sees is not ours to bind.
+                            </p>
+                            <p className="text-base text-amber-700 mt-3 leading-relaxed">
+                                Cloudflare Tunnel reverses the direction. <span className="font-mono text-sm bg-white px-1.5 py-0.5 rounded">cloudflared</span> makes an <strong>outbound-only</strong> connection to Cloudflare's edge on <strong>port 7844</strong> (UDP for QUIC, TCP for HTTP/2) and holds it open; the edge multiplexes inbound requests back down it. No inbound ports, no firewall changes, no public IP — and nothing for CGNAT to block, since it looks like ordinary outbound traffic. Same reason the origin has no attack surface: there is no listening port on the internet to find.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3">As built</h4>
+                            <ul className="text-base text-slate-600 space-y-2.5 leading-relaxed">
+                                <li>• <strong>datasharkvag.com is on Cloudflare</strong> — not optional. <span className="font-mono text-sm">cfargotunnel.com</span> only proxies traffic for DNS records in the same Cloudflare account, so a tunnel cannot route a hostname on a domain hosted elsewhere. It is also what makes the DNS-01 wildcard cert possible.</li>
+                                <li>• <strong>Each public hostname is a CNAME</strong> to <span className="font-mono text-sm">&lt;tunnel-UUID&gt;.cfargotunnel.com</span>. The record can exist before the tunnel runs — traffic just is not proxied until the connector is up.</li>
+                                <li>• <strong>The connector runs in Docker</strong>, not as a host service: the <span className="font-mono text-sm">cloudflared</span> container on <span className="font-mono text-sm">homelab_net</span>, dashboard-managed via <span className="font-mono text-sm">--token</span>.</li>
+                                <li>• <strong>Origins are Docker service names</strong> — <span className="font-mono text-sm">http://nginx:80</span>, never <span className="font-mono text-sm">localhost</span>, which inside the connector container means the connector itself.</li>
+                            </ul>
+                            <p className="text-base text-slate-600 mt-4 leading-relaxed">
+                                Two consequences of running it containerised: updates arrive via <span className="font-mono text-sm">docker compose pull</span> rather than <span className="font-mono text-sm">apt</span>, and <span className="font-mono text-sm">restart: unless-stopped</span> is what does the reconnect work — if that container is down, every public hostname 502s at the edge.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3">Terminology — what this actually is</h4>
+                            <ul className="text-base text-slate-600 space-y-2 leading-relaxed">
+                                <li>• <strong>Cloudflare Tunnel</strong> — the product. Formerly <strong>Argo Tunnel</strong>, renamed April 2021 when it stopped requiring an Argo subscription and became free.</li>
+                                <li>• <strong>cloudflared</strong> — the connector daemon that dials out.</li>
+                                <li>• <strong>Cloudflare One / Zero Trust</strong> — the dashboard and platform brand it is administered under. Not a tunnel type.</li>
+                                <li>• <strong>Cloudflare Access</strong> — a <em>separate</em> product adding identity policies in front of an app.</li>
+                            </ul>
+                            <p className="text-base text-slate-600 mt-4 leading-relaxed">
+                                So there is no such thing as a "Zero Trust tunnel". This is a Cloudflare Tunnel, specifically a <strong>remotely-managed</strong> one — created in the dashboard and run with <span className="font-mono text-sm bg-slate-100 px-1.5 py-0.5 rounded">--token</span>, rather than a locally-managed tunnel driven by a <span className="font-mono text-sm bg-slate-100 px-1.5 py-0.5 rounded">config.yaml</span>.
+                            </p>
+                            <p className="text-base text-slate-600 mt-3 leading-relaxed">
+                                <strong>The tunnel applies no access control on its own.</strong> Cloudflare's docs are blunt: if there is no Access application in place, the published hostname is available to anyone on the internet. The tunnel solves reachability; Access supplies the zero-trust part. Which is why the private tier needs one and the public tier deliberately does not — and why the Access application goes in <em>before</em> the hostname is routed.
+                            </p>
+                        </div>
                         <div className="p-6 md:p-7 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-xl">
-                            <h4 className="text-lg font-bold text-indigo-800">Cloudflare Wildcard SSL</h4>
+                            <h4 className="text-lg font-bold text-indigo-800">TLS termination</h4>
                             <p className="text-base text-indigo-700 mt-2 leading-relaxed">
-                                NPM fetches certificates via DNS-01 Challenge, providing full HTTPS for internal Tailscale nodes across the private network.
+                                Cloudflare terminates TLS at the edge for every tunnel hostname. NPM keeps its wildcard cert via the DNS-01 challenge to encrypt the origin hop, but it is no longer load-bearing — the edge cert is what browsers see.
                             </p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="p-6 border rounded-xl bg-white shadow-sm">
                                 <h4 className="font-bold text-slate-700 text-base">Public Flow</h4>
-                                <p className="text-sm text-slate-500 mt-2 uppercase tracking-wide">{"User -> CF -> Tunnel -> NPM -> Files"}</p>
+                                <p className="text-sm text-slate-500 mt-2 uppercase tracking-wide">{"Visitor -> CF DNS -> Tunnel -> NPM -> Static"}</p>
                             </div>
                             <div className="p-6 border rounded-xl bg-white shadow-sm">
                                 <h4 className="font-bold text-slate-700 text-base">Private Flow</h4>
-                                <p className="text-sm text-slate-500 mt-2 uppercase tracking-wide">{"You -> Tailscale (MagicDNS) -> NPM (SSL) -> App"}</p>
+                                <p className="text-sm text-slate-500 mt-2 uppercase tracking-wide">{"You -> CF DNS -> Access -> Tunnel -> NPM -> App"}</p>
                             </div>
+                        </div>
+                        <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl">
+                            <p className="text-base text-amber-800 leading-relaxed">
+                                <strong>Routing note:</strong> all tunnel hostnames point at the same connector and resolve to <span className="font-mono text-sm bg-white px-1.5 py-0.5 rounded">http://nginx:80</span>. NPM does host-header routing to the right container. The tier is decided entirely by whether an Access application covers the hostname. The NPM admin UI (<span className="font-mono text-sm">:81</span>) is never routed through a tunnel hostname.
+                            </p>
                         </div>
                     </div>
                 ),
@@ -261,38 +353,201 @@
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-slate-800">Tailscale & MagicDNS</h2>
                         <p className="text-slate-600 text-base leading-relaxed">
-                            Every device (phone, laptop, each Pi) runs the Tailscale client and joins one private network (a <strong>tailnet</strong>). Connections are <strong>peer-to-peer</strong> and end-to-end encrypted — no port forwarding, no exposing your home IP.
+                            The <strong>applied AI lab</strong> — a Mac mini as the main server plus a few mini PCs, each running one part of the stack. Not a VPN in the usual sense: there is no concentrator in the middle. Every machine runs the Tailscale client, joins one private network (a <strong>tailnet</strong>), and talks <strong>directly</strong> to every other node over an encrypted link.
+                        </p>
+                        <p className="text-slate-600 text-base leading-relaxed">
+                            Inference on one box, the vector store on another, agents orchestrated from the Mac mini — and a laptop anywhere in the world addressing all of them by name as if they were on the same desk.
                         </p>
 
-                        <div className="p-6 md:p-7 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-xl">
-                            <h4 className="text-lg font-bold text-indigo-800">MagicDNS — names instead of IPs</h4>
-                            <p className="text-base text-indigo-700 mt-2 leading-relaxed">
-                                MagicDNS gives every machine a stable name, so you reach the main server at
-                                <span className="font-mono bg-white px-1.5 py-0.5 rounded text-sm mx-1">mainserver.your-tailnet.ts.net</span>
-                                from anywhere — no need to memorise the <span className="font-mono">100.x.y.z</span> Tailscale IP.
+                        <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200 shadow-sm mermaid-container">
+                            <div className="mermaid">
+{`flowchart LR
+    Laptop["💻 Laptop"]
+    Phone["📱 Phone"]
+
+    Mac["🍎 macmini<br/>main server<br/>agent orchestrator"]
+    Infer["🧠 infer-01<br/>mini PC<br/>Ollama :11434"]
+    Data["🗄️ data-01<br/>mini PC<br/>Postgres :5432"]
+    DNS["🛡️ pihole<br/>DNS :53"]
+
+    Laptop <--> Mac
+    Laptop <--> Infer
+    Laptop <--> DNS
+    Phone <--> Mac
+    Mac <-->|inference| Infer
+    Mac <-->|state| Data
+    Infer <-->|retrieval| Data
+
+    classDef dev fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#000
+    classDef main fill:#ede9fe,stroke:#7c3aed,stroke-width:3px,color:#000
+    classDef ai fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#000
+    classDef node fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#000
+    class Phone,Laptop dev
+    class Mac main
+    class Infer,Data ai
+    class DNS node`}
+                            </div>
+                        </div>
+
+                        <div className="p-5 bg-slate-50 border-l-4 border-slate-400 rounded-r-xl">
+                            <p className="text-base text-slate-600 leading-relaxed">
+                                <strong>Not on this plane:</strong> Home Assistant, Samba, and Nextcloud belong to the Raspberry Pi homelab — a separate project on the same tailnet. The AI lab nodes above are their own set of machines.
                             </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl">
-                                <h4 className="font-bold text-emerald-800 text-base mb-2 flex items-center">
-                                    <Icon name="check-circle" className="mr-2 w-5 h-5" /> Override DNS: OFF
-                                </h4>
-                                <p className="text-sm text-emerald-700 leading-relaxed">
-                                    In the Tailscale admin <span className="font-mono bg-white px-1 rounded">DNS</span> tab, <strong>"Override local DNS"</strong> is left <strong>disabled</strong>. MagicDNS only resolves tailnet names; each device keeps its own normal DNS for everything else. Simple and no surprises.
+                            <div className="p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
+                                <h4 className="font-bold text-slate-700 text-base mb-2">Traditional VPN</h4>
+                                <p className="text-sm text-slate-600 leading-relaxed">
+                                    Every device dials one server. All traffic hairpins through it, so the server is both the bottleneck and the single point of failure. Pulling a model response from a mini PC means two hops through a box in the middle.
                                 </p>
                             </div>
-                            <div className="p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
-                                <h4 className="font-bold text-slate-700 text-base mb-2 flex items-center">
-                                    <Icon name="list-checks" className="mr-2 w-5 h-5" /> One-time setup
-                                </h4>
-                                <ul className="list-disc ml-5 text-sm text-slate-600 space-y-2 leading-relaxed">
-                                    <li>Install Tailscale on each device and sign in to the same account.</li>
-                                    <li>Admin console → <span className="font-mono bg-slate-100 px-1 rounded">DNS</span> → enable <strong>MagicDNS</strong>.</li>
-                                    <li>Leave <strong>"Override local DNS"</strong> unchecked.</li>
-                                    <li>Reach services by their <span className="font-mono">.ts.net</span> name.</li>
-                                </ul>
+                            <div className="p-6 bg-indigo-50 border border-indigo-200 rounded-xl">
+                                <h4 className="font-bold text-indigo-800 text-base mb-2">Tailscale — peer-to-peer</h4>
+                                <p className="text-sm text-indigo-700 leading-relaxed">
+                                    A coordination server hands out keys and names, then steps aside. Devices connect <strong>directly</strong>, NAT-punching through both routers. Your data never transits Tailscale's infrastructure.
+                                </p>
                             </div>
+                        </div>
+
+                        <div className="p-6 md:p-7 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-xl">
+                            <h4 className="text-lg font-bold text-indigo-800">MagicDNS fundamentals</h4>
+                            <p className="text-base text-indigo-700 mt-2 leading-relaxed">
+                                Every node gets a private <span className="font-mono">100.x.y.z</span> address on join — stable, but not memorable. MagicDNS is the tailnet's own DNS server: it keeps a live record of every node's name and address, so you type a name instead.
+                            </p>
+                            <div className="mt-4 bg-white rounded-lg p-4 font-mono text-sm text-slate-700 space-y-1">
+                                <div>mainserver.your-tailnet.ts.net  →  100.x.y.z</div>
+                                <div>pihole.your-tailnet.ts.net      →  100.x.y.z</div>
+                                <div>sensor.your-tailnet.ts.net      →  100.x.y.z</div>
+                            </div>
+                            <ul className="text-base text-indigo-700 mt-4 space-y-2 leading-relaxed">
+                                <li>• Records update automatically when a node's address changes — nothing to maintain.</li>
+                                <li>• Names work from any device on the tailnet, on any network, anywhere.</li>
+                                <li>• Resolution is tailnet-internal. These names do not exist on the public internet.</li>
+                            </ul>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3 flex items-center">
+                                <Icon name="server" className="mr-2 w-5 h-5" /> Applied AI lab — what runs where
+                            </h4>
+                            <p className="text-base text-slate-600 leading-relaxed mb-4">
+                                Split across machines so each does one job. Because MagicDNS names are stable, config files and notebooks hardcode a name once and keep working when a box moves network or changes address.
+                            </p>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-slate-500 uppercase text-xs tracking-wide border-b border-slate-200">
+                                        <tr>
+                                            <th className="py-2 pr-4">Node</th>
+                                            <th className="py-2 pr-4">Runs</th>
+                                            <th className="py-2">Reached at</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-slate-600">
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2.5 pr-4 font-semibold">macmini</td>
+                                            <td className="py-2.5 pr-4">Main server — agent orchestrator, model gateway</td>
+                                            <td className="py-2.5 font-mono text-xs">macmini.tailnet.ts.net</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2.5 pr-4 font-semibold">infer-01</td>
+                                            <td className="py-2.5 pr-4">Ollama — local inference</td>
+                                            <td className="py-2.5 font-mono text-xs">http://infer-01.tailnet.ts.net:11434</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2.5 pr-4 font-semibold">data-01</td>
+                                            <td className="py-2.5 pr-4">Postgres + pgvector — embeddings, agent state</td>
+                                            <td className="py-2.5 font-mono text-xs">data-01.tailnet.ts.net:5432</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2.5 pr-4 font-semibold">pihole</td>
+                                            <td className="py-2.5 pr-4">DNS + admin UI</td>
+                                            <td className="py-2.5 font-mono text-xs">pihole.tailnet.ts.net</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="py-2.5 pr-4 font-semibold">any node</td>
+                                            <td className="py-2.5 pr-4">Admin shell</td>
+                                            <td className="py-2.5 font-mono text-xs">tailscale ssh user@node</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p className="text-base text-slate-600 mt-4 leading-relaxed">
+                                An agent running on the Mac mini calls <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">infer-01.tailnet.ts.net:11434</span> for generation and <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">data-01.tailnet.ts.net:5432</span> for retrieval and run state. The laptop uses the same two names to drive or debug it — at home, on cellular, or on a coffee-shop network. No tunnels to open, no IPs to chase.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-rose-50 border-l-4 border-rose-500 rounded-r-xl">
+                            <h4 className="font-bold text-rose-800 text-base mb-2 flex items-center">
+                                <Icon name="shield" className="mr-2 w-5 h-5" /> Bind to the tailnet address, never 0.0.0.0
+                            </h4>
+                            <p className="text-base text-rose-700 leading-relaxed">
+                                Ollama and Postgres both ship with <strong>no authentication</strong>. On this design the network <em>is</em> the access control, which only holds if the services listen on the Tailscale interface alone. Bound to <span className="font-mono text-sm">0.0.0.0</span>, an open model endpoint and an unauthenticated database are exposed to every other machine on whatever LAN the box sits on — a café Wi-Fi, a conference network, a friend's house.
+                            </p>
+                            <div className="mt-4 bg-white rounded-lg p-4 font-mono text-xs text-slate-700 space-y-1.5">
+                                <div><span className="text-slate-400"># Ollama — systemd drop-in</span></div>
+                                <div>Environment="OLLAMA_HOST=100.x.y.z:11434"</div>
+                                <div className="pt-2"><span className="text-slate-400"># Postgres — postgresql.conf</span></div>
+                                <div>listen_addresses = '100.x.y.z'</div>
+                            </div>
+                            <p className="text-base text-rose-700 mt-4 leading-relaxed">
+                                Verify from a machine off the tailnet: the ports must refuse the connection.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3">Tightening it further</h4>
+                            <ul className="text-base text-slate-600 space-y-2.5 leading-relaxed">
+                                <li>• <strong>ACL tags</strong> — tag nodes <span className="font-mono text-sm">tag:ai-server</span> and <span className="font-mono text-sm">tag:client</span>, then grant only what each needs. Default tailnet policy lets every device reach every node; a compromised phone should not be able to open the vector store, and the Pi homelab nodes have no reason to reach the AI boxes at all.</li>
+                                <li>• <strong>Tailscale SSH</strong> — hands key management to the tailnet. No authorized_keys to distribute, and access follows the same ACL as everything else.</li>
+                                <li>• <strong>tailscale serve</strong> — real HTTPS on a <span className="font-mono text-sm">.ts.net</span> name without touching NPM. Useful for a Jupyter or Open WebUI front end that dislikes plain HTTP.</li>
+                                <li>• <strong>Disable key expiry</strong> on headless servers. A node whose key expires goes dark until someone re-authenticates it locally — painful on a machine with no monitor.</li>
+                                <li>• <strong>Funnel stays off.</strong> Publishing to the internet is the tunnel plane's job; mixing the two is how a lab box ends up publicly reachable by accident.</li>
+                            </ul>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3">Nameserver: Pi-hole's <em>Tailscale</em> IP</h4>
+                            <p className="text-base text-slate-600 leading-relaxed">
+                                Beyond resolving <span className="font-mono text-sm">.ts.net</span> names, MagicDNS can forward everything else to a nameserver you choose. That field holds Pi-hole's address — and it must be the <strong>Tailscale</strong> address, not the LAN one:
+                            </p>
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                                    <p className="font-mono text-sm text-emerald-800">100.x.y.z ✓</p>
+                                    <p className="text-sm text-emerald-700 mt-2 leading-relaxed">Pi-hole's tailnet address. Reachable from any device on the tailnet, on any network.</p>
+                                </div>
+                                <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+                                    <p className="font-mono text-sm text-rose-800">192.168.x.x ✗</p>
+                                    <p className="text-sm text-rose-700 mt-2 leading-relaxed">LAN address. Unreachable once you leave the house — DNS silently dies on cellular.</p>
+                                </div>
+                            </div>
+                            <p className="text-base text-slate-600 mt-4 leading-relaxed">
+                                This is why the Pi Zero joins the tailnet at all. Pi-hole itself stays LAN-scoped for home Wi-Fi via router DHCP; the tailnet address exists so remote devices can reach the admin UI and so this nameserver entry resolves from anywhere.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl">
+                            <h4 className="font-bold text-emerald-800 text-base mb-2 flex items-center">
+                                <Icon name="check-circle" className="mr-2 w-5 h-5" /> Override local DNS: OFF
+                            </h4>
+                            <p className="text-base text-emerald-700 leading-relaxed">
+                                This one toggle decides the scope of everything above. Left <strong>disabled</strong>, MagicDNS answers for tailnet names and each device keeps its own resolver for the rest — so phones on cellular are not forced through Pi-hole, and captive portals still work. Enabling it would make Pi-hole the global nameserver for every device anywhere, which is the setup this homelab rejected.
+                            </p>
+                        </div>
+
+                        <div className="p-6 md:p-7 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h4 className="font-bold text-slate-700 text-base mb-3 flex items-center">
+                                <Icon name="list-checks" className="mr-2 w-5 h-5" /> One-time setup
+                            </h4>
+                            <ol className="list-decimal ml-5 text-base text-slate-600 space-y-2 leading-relaxed">
+                                <li>Install Tailscale on each node — Mac mini, every mini PC, the Pi Zero, phone, laptop — same account.</li>
+                                <li>Admin console → <span className="font-mono bg-slate-100 px-1 rounded text-sm">DNS</span> → enable <strong>MagicDNS</strong>.</li>
+                                <li>Add Pi-hole's <span className="font-mono text-sm">100.x.y.z</span> address as the nameserver.</li>
+                                <li>Leave <strong>Override local DNS</strong> unchecked.</li>
+                                <li>Rename nodes so the <span className="font-mono text-sm">.ts.net</span> names are meaningful.</li>
+                                <li>Bind Ollama and Postgres to their tailnet addresses, never <span className="font-mono text-sm">0.0.0.0</span>.</li>
+                                <li>Disable key expiry on the headless mini PCs.</li>
+                            </ol>
                         </div>
                     </div>
                 ),
