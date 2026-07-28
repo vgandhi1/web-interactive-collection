@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Auto loan calculator: monthly payment, total interest, amortization curve, and an early-payoff simulator that shows how much extra monthly payments save.">
+<meta name="color-scheme" content="dark">
+<title>Car financing calculator</title>
+<style>
+  :root {
+    --bg: #101418;
+    --surface: #171c22;
+    --surface-2: #1e242b;
+    --border: #2a3138;
+    --text-primary: #f2f3f2;
+    --text-secondary: #9aa3ab;
+    --text-muted: #6b7480;
+    --accent: #4f8ff0;
+    --accent-dim: #274063;
+    --green: #35c48f;
+    --green-dim: #163829;
+    --red: #ea6a63;
+    --radius: 10px;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { margin-bottom: 2rem; }
+  header p.eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 6px;
+    font-weight: 600;
+  }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header .sub { color: var(--text-secondary); font-size: 14px; margin: 0; }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 1.75rem;
+  }
+  @media (min-width: 560px) {
+    .metrics { grid-template-columns: repeat(4, 1fr); }
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .metric .label { font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+  .metric .value { font-size: 20px; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .panel h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel h2 .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block;
+  }
+  .panel h2.payoff .dot { background: var(--green); }
+
+  .field { margin-bottom: 1.15rem; }
+  .field:last-child { margin-bottom: 0; }
+  .field-row {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;
+  }
+  .field-row label { font-size: 13px; color: var(--text-secondary); }
+  .field-row .out { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    margin: 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .panel.payoff input[type="range"]::-webkit-slider-thumb {
+    background: var(--green);
+    box-shadow: 0 0 0 1px var(--green);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .panel.payoff input[type="range"]::-moz-range-thumb { background: var(--green); }
+  input[type="range"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+  .panel.payoff input[type="range"]:focus-visible { outline-color: var(--green); }
+
+  .backlink {
+    display: inline-block;
+    margin-bottom: 1.25rem;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 12px;
+  }
+  .backlink:hover { color: var(--text-primary); border-color: var(--accent); }
+
+  .chart-fallback {
+    display: none;
+    font-size: 13px;
+    color: var(--text-muted);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  body.no-charts .chart-fallback { display: block; }
+  body.no-charts .chart-box,
+  body.no-charts .legend { display: none; }
+
+  .chart-box { position: relative; height: 240px; margin-top: 0.25rem; }
+  .chart-box.tall { height: 280px; }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 1.25rem 0 1.5rem;
+  }
+  .result-grid .metric { background: var(--green-dim); border-color: rgba(53,196,143,0.25); }
+  .result-grid .metric .label { color: #7fd9b8; }
+  .result-grid .metric .value { color: var(--green); font-size: 17px; }
+
+  .legend {
+    display: flex; gap: 18px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 2px; display: inline-block; border-radius: 1px; }
+
+  footer {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="index.html">← Interactive lab</a>
+  <header>
+    <p class="eyebrow">Auto loan planner</p>
+    <h1>Car financing calculator</h1>
+    <p class="sub">Model your monthly payment, see the full amortization curve, and find out how much sooner you could be debt-free by paying extra each month.</p>
+  </header>
+
+  <div class="metrics">
+    <div class="metric">
+      <p class="label">Monthly payment</p>
+      <p class="value" id="out-monthly">$0</p>
+    </div>
+    <div class="metric">
+      <p class="label">Total interest</p>
+      <p class="value" id="out-interest">$0</p>
+    </div>
+    <div class="metric">
+      <p class="label">Amount financed</p>
+      <p class="value" id="out-financed">$0</p>
+    </div>
+    <div class="metric">
+      <p class="label">Total cost</p>
+      <p class="value" id="out-total">$0</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="dot"></span>Loan details</h2>
+
+    <div class="field">
+      <div class="field-row"><label for="price">Car price</label><span class="out" id="price-out">$40,000</span></div>
+      <input type="range" min="10000" max="100000" step="500" value="40000" id="price">
+    </div>
+    <div class="field">
+      <div class="field-row"><label for="down">Down payment</label><span class="out" id="down-out">$8,000 (20%)</span></div>
+      <input type="range" min="0" max="100" step="1" value="20" id="down">
+    </div>
+    <div class="field">
+      <div class="field-row"><label for="rate">Interest rate (APR)</label><span class="out" id="rate-out">6.5%</span></div>
+      <input type="range" min="0" max="20" step="0.1" value="6.5" id="rate">
+    </div>
+    <div class="field">
+      <div class="field-row"><label for="term">Loan term</label><span class="out" id="term-out">60 months</span></div>
+      <input type="range" min="12" max="84" step="6" value="60" id="term">
+    </div>
+
+    <div class="chart-box" style="margin-top: 1.5rem;">
+      <canvas id="barChart" role="img" aria-label="Bar chart comparing down payment, amount financed, and total interest">Breakdown of down payment, financed amount, and interest.</canvas>
+    </div>
+    <p class="chart-fallback" style="margin-top:1.5rem;">Charts need the Chart.js library, which could not be loaded. All numbers above still update live.</p>
+  </div>
+
+  <div class="panel payoff">
+    <h2 class="payoff"><span class="dot"></span>Early payoff simulator</h2>
+
+    <div class="field">
+      <div class="field-row"><label for="extra">Extra payment per month</label><span class="out" id="extra-out">$100</span></div>
+      <input type="range" min="0" max="800" step="10" value="100" id="extra">
+    </div>
+
+    <div class="result-grid">
+      <div class="metric">
+        <p class="label">New monthly payment</p>
+        <p class="value" id="out-newmonthly">$0</p>
+      </div>
+      <div class="metric">
+        <p class="label">Paid off</p>
+        <p class="value" id="out-monthssaved">0 mo sooner</p>
+      </div>
+      <div class="metric">
+        <p class="label">Interest saved</p>
+        <p class="value" id="out-interestsaved">$0</p>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:#4f8ff0;"></i>Standard payoff</span>
+      <span><i style="background:#35c48f;"></i>With extra payment</span>
+    </div>
+    <div class="chart-box tall">
+      <canvas id="lineChart" role="img" aria-label="Line chart of remaining loan balance by month, comparing standard payoff to accelerated payoff with extra payments">Remaining balance declining over the loan term, comparing standard versus accelerated payoff.</canvas>
+    </div>
+    <p class="chart-fallback">Balance-over-time chart unavailable offline — the payoff numbers above are still accurate.</p>
+  </div>
+
+  <footer>Estimates only — actual loan terms depend on your lender, credit, taxes, and fees.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const fmt = n => '$' + Math.round(n).toLocaleString();
+const hasCharts = typeof Chart !== 'undefined';
+if (!hasCharts) document.body.classList.add('no-charts');
+const priceEl = document.getElementById('price');
+const downEl = document.getElementById('down');
+const rateEl = document.getElementById('rate');
+const termEl = document.getElementById('term');
+const extraEl = document.getElementById('extra');
+let barChart, lineChart;
+
+function monthlyPaymentFor(principal, monthlyRate, term) {
+  if (monthlyRate === 0) return principal / term;
+  return principal * (monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+}
+
+function amortize(principal, monthlyRate, payment, extra) {
+  let balance = principal;
+  const balances = [balance];
+  let totalInterest = 0;
+  let months = 0;
+  const maxMonths = 600;
+  while (balance > 0.01 && months < maxMonths) {
+    const interest = balance * monthlyRate;
+    let pay = payment + extra;
+    let principalPortion = pay - interest;
+    if (principalPortion > balance) principalPortion = balance;
+    balance -= principalPortion;
+    totalInterest += interest;
+    months++;
+    balances.push(Math.max(balance, 0));
+  }
+  return { balances, totalInterest, months };
+}
+
+function compute() {
+  const price = Number(priceEl.value);
+  const downPct = Number(downEl.value);
+  const rate = Number(rateEl.value);
+  const term = Number(termEl.value);
+  const extra = Number(extraEl.value);
+
+  const downAmt = price * downPct / 100;
+  const financed = price - downAmt;
+  const monthlyRate = rate / 100 / 12;
+  const monthly = monthlyPaymentFor(financed, monthlyRate, term);
+  const totalPaid = monthly * term;
+  const totalInterest = totalPaid - financed;
+  const finalTotal = totalPaid + downAmt;
+
+  document.getElementById('price-out').textContent = fmt(price);
+  document.getElementById('down-out').textContent = fmt(downAmt) + ' (' + downPct + '%)';
+  document.getElementById('rate-out').textContent = rate.toFixed(1) + '%';
+  document.getElementById('term-out').textContent = term + ' months';
+  document.getElementById('extra-out').textContent = fmt(extra);
+
+  document.getElementById('out-monthly').textContent = fmt(monthly);
+  document.getElementById('out-interest').textContent = fmt(totalInterest);
+  document.getElementById('out-financed').textContent = fmt(financed);
+  document.getElementById('out-total').textContent = fmt(finalTotal);
+
+  const standard = amortize(financed, monthlyRate, monthly, 0);
+  const accelerated = amortize(financed, monthlyRate, monthly, extra);
+
+  document.getElementById('out-newmonthly').textContent = fmt(monthly + extra);
+  const monthsSaved = standard.months - accelerated.months;
+  document.getElementById('out-monthssaved').textContent =
+    monthsSaved === 0 ? 'on schedule' : monthsSaved + (monthsSaved === 1 ? ' mo sooner' : ' mos sooner');
+  const interestSaved = standard.totalInterest - accelerated.totalInterest;
+  document.getElementById('out-interestsaved').textContent = fmt(interestSaved);
+
+  if (!hasCharts) return;
+
+  const blue = '#4f8ff0', red = '#ea6a63', green = '#35c48f';
+  const money = v => '$' + Math.round(v).toLocaleString();
+
+  if (barChart) {
+    barChart.data.datasets[0].data = [downAmt, financed, totalInterest];
+    barChart.update('none');
+  } else {
+    barChart = new Chart(document.getElementById('barChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Down payment', 'Amount financed', 'Total interest'],
+        datasets: [{ data: [downAmt, financed, totalInterest], backgroundColor: [green, blue, red], borderRadius: 4, maxBarThickness: 60 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => money(ctx.parsed.y) } }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: '#9aa3ab', callback: v => '$' + (v/1000) + 'k' }, grid: { color: '#2a3138' } },
+          x: { ticks: { color: '#9aa3ab' }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  const maxLen = Math.max(standard.balances.length, accelerated.balances.length);
+  const labels = Array.from({ length: maxLen }, (_, i) => i);
+  const standardData = labels.map((_, i) => i < standard.balances.length ? standard.balances[i] : null);
+  const acceleratedData = labels.map((_, i) => i < accelerated.balances.length ? accelerated.balances[i] : null);
+
+  if (lineChart) {
+    lineChart.data.labels = labels;
+    lineChart.data.datasets[0].data = standardData;
+    lineChart.data.datasets[1].data = acceleratedData;
+    lineChart.update('none');
+  } else {
+    lineChart = new Chart(document.getElementById('lineChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Standard', data: standardData, borderColor: blue, borderWidth: 2, pointRadius: 0, tension: 0 },
+          { label: 'Accelerated', data: acceleratedData, borderColor: green, borderWidth: 2, pointRadius: 0, tension: 0 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: items => 'Month ' + items[0].label,
+              label: ctx => ctx.dataset.label + ': ' + money(ctx.parsed.y)
+            }
+          }
+        },
+        scales: {
+          x: { title: { display: true, text: 'Months', color: '#9aa3ab' }, ticks: { color: '#9aa3ab', maxTicksLimit: 10 }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#9aa3ab', callback: v => '$' + (v/1000) + 'k' }, grid: { color: '#2a3138' } }
+        }
+      }
+    });
+  }
+}
+
+[priceEl, downEl, rateEl, termEl, extraEl].forEach(el => el.addEventListener('input', compute));
+compute();
+</script>
+</body>
+</html>
